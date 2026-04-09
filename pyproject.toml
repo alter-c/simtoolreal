@@ -50,7 +50,7 @@ dependencies = [
     "pytorch3d",
     "imageio[ffmpeg]",
     "yourdfpy",
-    "viser",
+    "viser==1.0.0",
     "pytorch-kinematics",
     "mujoco",
     "ruff",

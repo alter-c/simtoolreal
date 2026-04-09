@@ -219,3 +219,6 @@ wandb/
 
 # FoundationPose (separate repo)
 FoundationPose/
+
+# Issac Gym
+isaacgym/
