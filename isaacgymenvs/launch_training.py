@@ -33,14 +33,14 @@ class LaunchTrainingArgs:
     """Object angular velocity penalty scale."""
 
     # === SAPG ===
-    num_envs: int = 24576
+    num_envs: int = 12288
     """Number of environments. Reduce this to 12288 if you run out of GPU memory."""
 
     num_blocks: int = 6
     """Number of SAPG blocks."""
 
     # === Wandb ===
-    wandb_entity: str = "tylerlum"
+    wandb_entity: str = "dxchen2002"
     """Wandb entity (user or team)."""
 
     wandb_project: str = "simtoolreal"
