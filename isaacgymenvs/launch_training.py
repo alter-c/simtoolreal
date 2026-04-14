@@ -40,7 +40,7 @@ class LaunchTrainingArgs:
     """Number of SAPG blocks."""
 
     # === Wandb ===
-    wandb_entity: str = "dxchen2002"
+    wandb_entity: str = "dxchen2002-beijing-academy-of-artificial-intelligence"
     """Wandb entity (user or team)."""
 
     wandb_project: str = "simtoolreal"

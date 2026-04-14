@@ -222,3 +222,7 @@ FoundationPose/
 
 # Issac Gym
 isaacgym/
+
+# copilot
+copilot/
+session-*.md
