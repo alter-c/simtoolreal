@@ -30,10 +30,17 @@ from viser.extras import ViserUrdf
 from dextoolbench.metadata import DEXTOOLBENCH_DATA_STRUCTURE, OBJECT_NAME_TO_CATEGORY
 
 # Pre-load the sidebar overview image as a numpy array (once, at import time)
-_SIDEBAR_IMG_PATH = Path(__file__).resolve().parent.parent / "assets" / "urdf" / "dextoolbench" / "dextoolbench_objects_sidebar.png"
+_SIDEBAR_IMG_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "assets"
+    / "urdf"
+    / "dextoolbench"
+    / "dextoolbench_objects_sidebar.png"
+)
 _SIDEBAR_IMG = None
 if _SIDEBAR_IMG_PATH.exists():
     from PIL import Image as _PILImage
+
     _SIDEBAR_IMG = np.asarray(_PILImage.open(_SIDEBAR_IMG_PATH).convert("RGB"))
 
 # ═══════════════════════════════════════════════════════════════════
@@ -45,11 +52,18 @@ TABLE_Z = 0.38
 Z_OFFSET = 0.03
 
 # Default joint positions matching IsaacGym reset
-# Arm: sharpa variant with startArmHigher=True
-_ARM_DEFAULT = np.array([-1.571, 1.571, 0.0, 1.376, 0.0, 1.485, 1.308])
+# Arm: G1 left arm default position (placeholder, needs tuning)
+from isaacgymenvs.utils.observation_action_utils_g1 import (
+    DES_LEFT_ARM_POS,
+    DES_LEFT_HAND_POS,
+    NUM_HAND_ARM_DOFS,
+    N_OBS,
+)
+
+_ARM_DEFAULT = DES_LEFT_ARM_POS.copy()
 _ARM_DEFAULT[1] -= np.deg2rad(10)  # startArmHigher
 _ARM_DEFAULT[3] += np.deg2rad(10)  # startArmHigher
-DEFAULT_DOF_POS = np.zeros(29)
+DEFAULT_DOF_POS = np.zeros(NUM_HAND_ARM_DOFS)
 DEFAULT_DOF_POS[:7] = _ARM_DEFAULT
 
 # ── Per-task environment URDFs ─────────────────────────────────────
@@ -60,7 +74,15 @@ ENV_DIR = REPO_ROOT / "assets" / "urdf" / "dextoolbench" / "environments"
 def _get_task_table_urdf(category, object_name, task_name):
     # type: (str, str, str) -> str
     """Return the URDF path relative to the assets/ dir (for IsaacGym)."""
-    return "urdf/dextoolbench/environments/" + category + "/" + object_name + "/" + task_name + ".urdf"
+    return (
+        "urdf/dextoolbench/environments/"
+        + category
+        + "/"
+        + object_name
+        + "/"
+        + task_name
+        + ".urdf"
+    )
 
 
 def _get_task_table_urdf_abs(category, object_name, task_name):
@@ -117,6 +139,7 @@ def _parse_table_urdf(urdf_path):
 
     return boxes, whiteboards, meshes
 
+
 # ── Dataset catalogue (built from metadata.py) ───────────────────
 
 CATEGORY_DESCRIPTIONS = {
@@ -142,6 +165,7 @@ def quat_xyzw_to_wxyz(q):
 # SUBPROCESS  -- IsaacGym simulation (all heavy imports stay here)
 # ═══════════════════════════════════════════════════════════════════
 
+
 def _sim_get_state(env, obs, joint_lower, joint_upper, n_act):
     """Extract visualisation state from the env."""
     obs_np = obs[0].cpu().numpy()
@@ -155,6 +179,7 @@ def _sim_get_state(env, obs, joint_lower, joint_upper, n_act):
 
 def _sim_reset(env, n_act, device):
     import torch
+
     obs, _, _, _ = env.step(torch.zeros((env.num_envs, n_act), device=device))
     return obs["obs"]
 
@@ -195,13 +220,15 @@ def _sim_episode(conn, env, policy, joint_lower, joint_upper, n_act, device):
         done = done_tensor[0].item()
         step += 1
 
-        conn.send((
-            "state",
-            state,
-            int(env.successes[0].item()),
-            env.max_consecutive_successes,
-            step,
-        ))
+        conn.send(
+            (
+                "state",
+                state,
+                int(env.successes[0].item()),
+                env.max_consecutive_successes,
+                step,
+            )
+        )
 
         elapsed = time.time() - t0
         if (sleep := control_dt - elapsed) > 0:
@@ -212,31 +239,40 @@ def _sim_episode(conn, env, policy, joint_lower, joint_upper, n_act, device):
     return obs
 
 
-def sim_worker(conn, category, object_name, task_name, table_urdf,
-               config_path, checkpoint_path):
+def sim_worker(
+    conn, category, object_name, task_name, table_urdf, config_path, checkpoint_path
+):
     """Child process entry-point.  Creates the env, then waits for commands."""
     # ── Heavy imports (only in the subprocess) ────────────────
     try:
         from isaacgym import gymapi  # noqa: F401 isort:skip
     except ImportError:
-        conn.send(("error",
-                   "Isaac Gym is not installed. Download Isaac Gym Preview 4 "
-                   "from https://developer.nvidia.com/isaac-gym-preview-4 and "
-                   "install with: cd isaacgym/python && uv pip install -e ."))
+        conn.send(
+            (
+                "error",
+                "Isaac Gym is not installed. Download Isaac Gym Preview 4 "
+                "from https://developer.nvidia.com/isaac-gym-preview-4 and "
+                "install with: cd isaacgym/python && uv pip install -e .",
+            )
+        )
         return
     import json, torch  # noqa: E401
     from isaacgymenvs.utils.utils import get_repo_root_dir
     from deployment.rl_player import RlPlayer
     from deployment.isaac.isaac_env import create_env
 
-    n_act = 29
+    n_act = NUM_HAND_ARM_DOFS
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     try:
         # Load trajectory
         traj_path = (
-            get_repo_root_dir() / "dextoolbench" / "trajectories"
-            / category / object_name / f"{task_name}.json"
+            get_repo_root_dir()
+            / "dextoolbench"
+            / "trajectories"
+            / category
+            / object_name
+            / f"{task_name}.json"
         )
         with open(traj_path) as f:
             traj_data = json.load(f)
@@ -244,7 +280,9 @@ def sim_worker(conn, category, object_name, task_name, table_urdf,
 
         # Create environment
         env = create_env(
-            config_path=str(config_path), headless=True, device=device,
+            config_path=str(config_path),
+            headless=True,
+            device=device,
             overrides={
                 # Turn off randomization noise
                 "task.env.resetPositionNoiseX": 0.0,
@@ -305,7 +343,9 @@ def sim_worker(conn, category, object_name, task_name, table_urdf,
 
         # Load policy
         env.set_env_state(torch.load(checkpoint_path)[0]["env_state"])
-        policy = RlPlayer(140, n_act, config_path, checkpoint_path, device, env.num_envs)
+        policy = RlPlayer(
+            N_OBS, n_act, config_path, checkpoint_path, device, env.num_envs
+        )
 
         # Initial reset
         obs = _sim_reset(env, n_act, device)
@@ -318,7 +358,13 @@ def sim_worker(conn, category, object_name, task_name, table_urdf,
             cmd = conn.recv()
             if cmd == "run":
                 obs = _sim_episode(
-                    conn, env, policy, joint_lower, joint_upper, n_act, device,
+                    conn,
+                    env,
+                    policy,
+                    joint_lower,
+                    joint_upper,
+                    n_act,
+                    device,
                 )
             elif cmd == "quit":
                 break
@@ -333,8 +379,8 @@ def sim_worker(conn, category, object_name, task_name, table_urdf,
 # MAIN PROCESS  -- single viser server with all GUI + rendering
 # ═══════════════════════════════════════════════════════════════════
 
-class InteractiveDemo:
 
+class InteractiveDemo:
     def __init__(self, config_path: str, checkpoint_path: str, port: int = 8080):
         self.port = port
         self.config_path = config_path
@@ -368,13 +414,12 @@ class InteractiveDemo:
     # ── GUI ────────────────────────────────────────────────────
 
     def _build_gui(self):
-        self.server.gui.add_markdown(
-            "# DexToolBench\n### Interactive Policy Demo"
-        )
+        self.server.gui.add_markdown("# DexToolBench\n### Interactive Policy Demo")
 
         if _SIDEBAR_IMG is not None:
             with self.server.gui.add_folder(
-                "DexToolBench Objects", expand_by_default=True,
+                "DexToolBench Objects",
+                expand_by_default=True,
             ):
                 self.server.gui.add_image(
                     _SIDEBAR_IMG,
@@ -384,15 +429,23 @@ class InteractiveDemo:
 
         _PH = "-- Select --"
         with self.server.gui.add_folder("Dataset Selection", expand_by_default=True):
-            cats = [_PH] + [_snake_to_title(c) for c in sorted(DEXTOOLBENCH_DATA_STRUCTURE.keys())]
+            cats = [_PH] + [
+                _snake_to_title(c) for c in sorted(DEXTOOLBENCH_DATA_STRUCTURE.keys())
+            ]
             self._dd_cat = self.server.gui.add_dropdown(
-                "Tool Category", options=cats, initial_value=_PH,
+                "Tool Category",
+                options=cats,
+                initial_value=_PH,
             )
             self._dd_obj = self.server.gui.add_dropdown(
-                "Object Instance", options=[_PH], initial_value=_PH,
+                "Object Instance",
+                options=[_PH],
+                initial_value=_PH,
             )
             self._dd_task = self.server.gui.add_dropdown(
-                "Task", options=[_PH], initial_value=_PH,
+                "Task",
+                options=[_PH],
+                initial_value=_PH,
             )
             self._md_desc = self.server.gui.add_markdown(
                 "*Select a tool category to begin.*"
@@ -427,11 +480,17 @@ class InteractiveDemo:
         self.server.scene.add_grid("/ground", width=2, height=2, cell_size=0.1)
 
         robot_urdf = (
-            REPO_ROOT / "assets" / "urdf" / "kuka_sharpa_description"
-            / "iiwa14_left_sharpa_adjusted_restricted.urdf"
+            REPO_ROOT
+            / "assets"
+            / "urdf"
+            / "g1_description"
+            / "g1_29dof_with_left_linkerhand_actuated.urdf"
         )
         self.server.scene.add_frame(
-            "/robot", position=(0, 0.8, 0), wxyz=(1, 0, 0, 0), show_axes=False,
+            "/robot",
+            position=(0, 0.8, 0),
+            wxyz=(1, 0, 0, 0),
+            show_axes=False,
         )
         self.robot = ViserUrdf(self.server, robot_urdf, root_node_name="/robot")
         self.robot.update_cfg(DEFAULT_DOF_POS)
@@ -443,12 +502,18 @@ class InteractiveDemo:
         """Show a plain wooden table before any environment is loaded."""
         self._clear_dynamic()
         t = self.server.scene.add_frame(
-            "/table", position=(0, 0, TABLE_Z), wxyz=(1, 0, 0, 0), show_axes=False,
+            "/table",
+            position=(0, 0, TABLE_Z),
+            wxyz=(1, 0, 0, 0),
+            show_axes=False,
         )
         self._dyn.append(t)
         self._add_box(
-            "/table/wood", (0.475, 0.4, 0.3), (0, 0, 0),
-            color=(180, 130, 70), opacity=0.9,
+            "/table/wood",
+            (0.475, 0.4, 0.3),
+            (0, 0, 0),
+            color=(180, 130, 70),
+            opacity=0.9,
         )
 
     # ── Cascading dropdown ─────────────────────────────────────
@@ -511,7 +576,9 @@ class InteractiveDemo:
 
     def _add_box(self, name, dimensions, position, color, opacity=None):
         """Add a coloured box to the viser scene and track it in _dyn."""
-        kwargs = dict(color=color, dimensions=dimensions, position=position, side="double")
+        kwargs = dict(
+            color=color, dimensions=dimensions, position=position, side="double"
+        )
         if opacity is not None:
             kwargs["opacity"] = opacity
         h = self.server.scene.add_box(name, **kwargs)
@@ -522,14 +589,20 @@ class InteractiveDemo:
         """Parse the per-task URDF and render coloured boxes in viser."""
         self._clear_dynamic()
         t = self.server.scene.add_frame(
-            "/table", position=(0, 0, TABLE_Z), wxyz=(1, 0, 0, 0), show_axes=False,
+            "/table",
+            position=(0, 0, TABLE_Z),
+            wxyz=(1, 0, 0, 0),
+            show_axes=False,
         )
         self._dyn.append(t)
 
         # Always draw the wooden table body
         self._add_box(
-            "/table/wood", (0.475, 0.4, 0.3), (0, 0, 0),
-            color=(180, 130, 70), opacity=0.9,
+            "/table/wood",
+            (0.475, 0.4, 0.3),
+            (0, 0, 0),
+            color=(180, 130, 70),
+            opacity=0.9,
         )
 
         # Parse URDF for additional props
@@ -538,13 +611,16 @@ class InteractiveDemo:
 
             # Render nail / wall / other box props with material-appropriate colors
             _MAT_COLORS = {
-                "grey": (170, 175, 180),   # metallic grey (nail)
-                "wall": (184, 122, 72),    # wooden wall
+                "grey": (170, 175, 180),  # metallic grey (nail)
+                "wall": (184, 122, 72),  # wooden wall
             }
             for i, (mat_name, xyz, size) in enumerate(boxes):
                 color = _MAT_COLORS.get(mat_name, (170, 175, 180))
                 self._add_box(
-                    f"/table/prop_{i}", size, xyz, color=color,
+                    f"/table/prop_{i}",
+                    size,
+                    xyz,
+                    color=color,
                 )
 
             # Render whiteboards
@@ -553,35 +629,40 @@ class InteractiveDemo:
                 fd = 0.03  # frame depth
                 # White surface
                 self._add_box(
-                    f"/table/wb_surface_{i}", (0.02, bw, bh), (bx, by, bz),
+                    f"/table/wb_surface_{i}",
+                    (0.02, bw, bh),
+                    (bx, by, bz),
                     color=(240, 240, 240),
                 )
                 # Wooden frame: 4 border strips
                 self._add_box(
-                    f"/table/wb_ft_{i}", (fd, bw + 2 * fw, fw),
+                    f"/table/wb_ft_{i}",
+                    (fd, bw + 2 * fw, fw),
                     (bx, by, bz + bh / 2 + fw / 2),
                     color=(140, 90, 45),
                 )
                 self._add_box(
-                    f"/table/wb_fb_{i}", (fd, bw + 2 * fw, fw),
+                    f"/table/wb_fb_{i}",
+                    (fd, bw + 2 * fw, fw),
                     (bx, by, bz - bh / 2 - fw / 2),
                     color=(140, 90, 45),
                 )
                 self._add_box(
-                    f"/table/wb_fl_{i}", (fd, fw, bh),
+                    f"/table/wb_fl_{i}",
+                    (fd, fw, bh),
                     (bx, by - bw / 2 - fw / 2, bz),
                     color=(140, 90, 45),
                 )
                 self._add_box(
-                    f"/table/wb_fr_{i}", (fd, fw, bh),
+                    f"/table/wb_fr_{i}",
+                    (fd, fw, bh),
                     (bx, by + bw / 2 + fw / 2, bz),
                     color=(140, 90, 45),
                 )
 
             # Render bowl/plate meshes using ViserUrdf (needs the actual URDF)
             if meshes:
-                ViserUrdf(self.server, table_urdf_path,
-                          root_node_name="/table")
+                ViserUrdf(self.server, table_urdf_path, root_node_name="/table")
 
         # Reset robot to default pose while we wait
         self.robot.update_cfg(DEFAULT_DOF_POS)
@@ -589,20 +670,31 @@ class InteractiveDemo:
     def _setup_object_goal(self, object_name):
         """Add the object + goal URDFs (called once IsaacGym reports ready)."""
         from dextoolbench.objects import NAME_TO_OBJECT
+
         obj_urdf = NAME_TO_OBJECT[object_name].urdf_path
 
         self._obj_frame = self.server.scene.add_frame(
-            "/object", show_axes=True, axes_length=0.1, axes_radius=0.001,
+            "/object",
+            show_axes=True,
+            axes_length=0.1,
+            axes_radius=0.001,
         )
         self._dyn.append(self._obj_frame)
         ViserUrdf(self.server, obj_urdf, root_node_name="/object")
 
         self._goal_frame = self.server.scene.add_frame(
-            "/goal", show_axes=True, axes_length=0.1, axes_radius=0.001,
+            "/goal",
+            show_axes=True,
+            axes_length=0.1,
+            axes_radius=0.001,
         )
         self._dyn.append(self._goal_frame)
-        ViserUrdf(self.server, obj_urdf, root_node_name="/goal",
-                  mesh_color_override=(0, 255, 0, 0.5))
+        ViserUrdf(
+            self.server,
+            obj_urdf,
+            root_node_name="/goal",
+            mesh_color_override=(0, 255, 0, 0.5),
+        )
 
     # ── Subprocess management ──────────────────────────────────
 
@@ -641,7 +733,9 @@ class InteractiveDemo:
         # Show table + default robot pose immediately while IsaacGym loads
         self._setup_table(table_urdf_abs)
 
-        label = f"{_snake_to_title(cat_key)} / {self._dd_obj.value} / {self._dd_task.value}"
+        label = (
+            f"{_snake_to_title(cat_key)} / {self._dd_obj.value} / {self._dd_task.value}"
+        )
         self._md_status.content = f"**Status:** Loading *{label}* ..."
         self._md_task.content = f"**Task:** {label}"
 
@@ -656,8 +750,15 @@ class InteractiveDemo:
         self._conn = parent_conn
         self._proc = ctx.Process(
             target=sim_worker,
-            args=(child_conn, cat_key, object_name, task_name, table_urdf_rel,
-                  self.config_path, self.checkpoint_path),
+            args=(
+                child_conn,
+                cat_key,
+                object_name,
+                task_name,
+                table_urdf_rel,
+                self.config_path,
+                self.checkpoint_path,
+            ),
             daemon=True,
         )
         self._proc.start()
@@ -750,7 +851,9 @@ class InteractiveDemo:
             self._md_status.content = (
                 f"**Status:** Done -- {steps / 60.0:.1f}s, {goal_pct:.0f}% goals"
             )
-            print(f"[launcher] Episode done: {goal_pct:.0f}% goals in {steps / 60.0:.1f}s")
+            print(
+                f"[launcher] Episode done: {goal_pct:.0f}% goals in {steps / 60.0:.1f}s"
+            )
 
         elif tag == "stopped":
             self._episode_running = False
@@ -804,11 +907,15 @@ if __name__ == "__main__":
     )
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument(
-        "--config-path", type=str, default="pretrained_policy/config.yaml",
+        "--config-path",
+        type=str,
+        default="pretrained_policy/config.yaml",
         help="Path to the policy config YAML",
     )
     parser.add_argument(
-        "--checkpoint-path", type=str, default="pretrained_policy/model.pth",
+        "--checkpoint-path",
+        type=str,
+        default="pretrained_policy/model.pth",
         help="Path to the policy checkpoint",
     )
     args = parser.parse_args()

@@ -71,7 +71,7 @@ env:
   keypointRewScale: 200.0
   distanceDeltaRewScale: 50.0
   reachGoalBonus: 1000.0
-  kukaActionsPenaltyScale: 0.03
+  armActionsPenaltyScale: 0.03
   handActionsPenaltyScale: 0.003
   fallDistance: 0.24
   fallPenalty: 0.0
@@ -193,7 +193,7 @@ env:
   tableFriction: 0.5
 
   asset:
-    robot: "urdf/kuka_sharpa_description/iiwa14_left_sharpa_adjusted_restricted.urdf"
+    robot: "urdf/g1_description/g1_29dof_with_left_linkerhand_actuated.urdf"
 
     table: "urdf/table_narrow.urdf"
 

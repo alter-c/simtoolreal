@@ -23,6 +23,10 @@ from viser.extras import ViserUrdf
 from deployment.isaac.isaac_env import create_env
 from deployment.rl_player import RlPlayer
 from dextoolbench.objects import NAME_TO_OBJECT
+from isaacgymenvs.utils.observation_action_utils_g1 import (
+    NUM_HAND_ARM_DOFS as G1_NUM_HAND_ARM_DOFS,
+)
+from isaacgymenvs.utils.observation_action_utils_g1 import N_OBS as G1_N_OBS
 from isaacgymenvs.utils.utils import get_repo_root_dir
 
 TABLE_Z = 0.38
@@ -83,13 +87,13 @@ class ViserServer:
         # Robot
         robot_urdf = (
             get_repo_root_dir()
-            / "assets/urdf/kuka_sharpa_description/iiwa14_left_sharpa_adjusted_restricted.urdf"
+            / "assets/urdf/g1_description/g1_29dof_with_left_linkerhand_actuated.urdf"
         )
         self.server.scene.add_frame(
             "/robot", position=(0, 0.8, 0), wxyz=(1, 0, 0, 0), show_axes=False
         )
         self.robot = ViserUrdf(self.server, robot_urdf, root_node_name="/robot")
-        self.robot.update_cfg(np.zeros(29))
+        self.robot.update_cfg(np.zeros(G1_NUM_HAND_ARM_DOFS))
 
         # Table
         table_urdf = get_repo_root_dir() / "assets" / self.table_urdf
@@ -276,7 +280,8 @@ class EvalRunner:
     ):
         self.env = env
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.n_act = 29
+        self.n_act = G1_NUM_HAND_ARM_DOFS
+        self.n_obs = G1_N_OBS
         self.control_hz = 60.0
         self.control_dt = 1.0 / self.control_hz
         self.record_fps = 10
@@ -289,7 +294,12 @@ class EvalRunner:
         # Load policy
         self.env.set_env_state(torch.load(checkpoint_path)[0]["env_state"])
         self.policy = RlPlayer(
-            140, self.n_act, config_path, checkpoint_path, self.device, env.num_envs
+            self.n_obs,
+            self.n_act,
+            config_path,
+            checkpoint_path,
+            self.device,
+            env.num_envs,
         )
 
         self.output_dir = output_dir
@@ -340,7 +350,9 @@ class EvalRunner:
         """Extract current state for visualization."""
         obs_np = self.obs[0].cpu().numpy()
         joint_pos = (
-            0.5 * (obs_np[:29] + 1.0) * (self.joint_upper - self.joint_lower)
+            0.5
+            * (obs_np[:G1_NUM_HAND_ARM_DOFS] + 1.0)
+            * (self.joint_upper - self.joint_lower)
             + self.joint_lower
         )
         return (
