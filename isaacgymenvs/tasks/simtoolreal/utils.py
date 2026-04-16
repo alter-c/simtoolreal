@@ -38,30 +38,12 @@ def populate_dof_properties(hand_arm_dof_props, arm_dofs: int, hand_dofs: int) -
 
     import numpy as np
 
-    # G1 left arm PD controller parameters (scaled from Kuka values proportionally)
-    # Kuka arm efforts were 300Nm for shoulder/elbow, scaled to G1 25Nm shoulder = 25/300 ratio
-    # Shoulder joints: 25Nm effort, elbow: 25Nm, wrist: 5Nm
-    # Stiffness/damping scaled similarly using the same ratio (~0.083x)
-    arm_efforts = [25.0, 25.0, 25.0, 25.0, 5.0, 25.0, 5.0]
-    arm_stiffnesses = [50.0, 50.0, 42.0, 33.0, 4.0, 17.0, 4.0]
-    arm_dampings = [
-        4.0,
-        4.0,
-        3.5,
-        3.0,
-        0.5,
-        1.5,
-        0.5,
-    ]
-    arm_armatures = [
-        0.1,
-        0.1,
-        0.08,
-        0.08,
-        0.01,
-        0.04,
-        0.01,
-    ]
+    # G1 left arm PD controller parameters
+    arm_stiffnesses = [75.0, 75.0, 75.0, 75.0, 75.0, 75.0, 75.0] # Kp
+    arm_dampings = [2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0]  # Kd
+
+    arm_efforts = [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
+    arm_armatures = [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01]  
 
     assert (
         len(arm_stiffnesses)
@@ -79,60 +61,39 @@ def populate_dof_properties(hand_arm_dof_props, arm_dofs: int, hand_dofs: int) -
     hand_arm_dof_props["effort"][0:arm_dofs] = arm_efforts
 
     # LinkerHand O6 left hand PD parameters
-    # 11 finger joints: lh_thumb_cmc_yaw, lh_thumb_cmc_pitch, lh_thumb_ip,
-    #   lh_index_mcp_pitch, lh_index_dip, lh_middle_mcp_pitch, lh_middle_dip,
-    #   lh_ring_mcp_pitch, lh_ring_dip, lh_pinky_mcp_pitch, lh_pinky_dip
+    # 11 finger joints: 
+    # [ lh_thumb_cmc_yaw, lh_thumb_cmc_pitch, lh_thumb_ip,
+    #   lh_index_mcp_pitch, lh_index_dip, 
+    #   lh_middle_mcp_pitch, lh_middle_dip,
+    #   lh_ring_mcp_pitch, lh_ring_dip, 
+    #   lh_pinky_mcp_pitch, lh_pinky_dip]
     hand_stiffnesses = [
-        8.0,
-        10.0,
-        3.0,
-        6.0,
-        2.0,
-        6.0,
-        2.0,
-        6.0,
-        2.0,
-        6.0,
-        2.0,
+        13.2, 6.95, 0.9,
+        4.76, 0.9,
+        4.76, 0.9,
+        4.76, 0.9,
+        4.76, 0.9,
     ]
     hand_dampings = [
-        0.4,
-        0.5,
-        0.15,
-        0.3,
-        0.1,
-        0.3,
-        0.1,
-        0.3,
-        0.1,
-        0.3,
-        0.1,
+        0.287, 0.408, 0.042,
+        0.208, 0.035,
+        0.208, 0.035,
+        0.208, 0.035,
+        0.208, 0.035,
     ]
     hand_armatures = [
-        0.001,
-        0.001,
-        0.0005,
-        0.001,
-        0.0003,
-        0.001,
-        0.0003,
-        0.001,
-        0.0003,
-        0.001,
-        0.0003,
+        0.003, 0.003, 0.0006,
+        0.002, 0.0004,
+        0.002, 0.0004,
+        0.002, 0.0004,
+        0.002, 0.0004,
     ]
     hand_frictions = [
-        0.05,
-        0.05,
-        0.02,
-        0.05,
-        0.02,
-        0.05,
-        0.02,
-        0.05,
-        0.02,
-        0.05,
-        0.02,
+        0.132, 0.132, 0.01276,
+        0.075, 0.0038,
+        0.075, 0.0038,
+        0.075, 0.0038,
+        0.075, 0.0038,
     ]
     assert (
         len(hand_stiffnesses)

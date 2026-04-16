@@ -85,7 +85,7 @@ assert len(JOINT_NAMES_ISAACGYM) == NUM_HAND_ARM_DOFS, (
 )
 
 DES_LEFT_ARM_POS = np.array(
-    [0.0, 0.5, 0.0, -1.0, 0.0, 0.0, 0.0],
+    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     dtype=np.float32,
 )
 
@@ -202,7 +202,11 @@ N_OBS = (
 assert len(OBS_NAMES) == N_OBS, f"len(OBS_NAMES): {len(OBS_NAMES)}, expected: {N_OBS}"
 
 T_W_R_np = np.eye(4)
-T_W_R_np[:3, 3] = np.array([0.0, 0.8, 0.0])
+T_W_R_np[0, 0] = 0.0
+T_W_R_np[0, 1] = 1.0
+T_W_R_np[1, 0] = -1.0
+T_W_R_np[1, 1] = 0.0
+T_W_R_np[:3, 3] = np.array([0.0, 0.4, 0.79])
 
 PALM_OFFSET_np = np.array([0.0, 0.0, 0.13], dtype=np.float32)
 
@@ -608,8 +612,8 @@ Frames and Transforms
 W = world, R = robot base, P = palm (left_wrist_yaw_link + offset),
     O = object, G = goal, F = fingertip
 
-W != R because the robot base is offset from the world origin:
-  T_W_R = eye(4) with translation (x=0, y=0.8, z=0)
+W != R because the robot base is offset and rotated from the world origin:
+  T_W_R = eye(4) with translation (x=0, y=0.4, z=0.79) and rotation -90° around Z
 
 Robot: G1 left arm (7 DOF) + LinkerHand O6 left (11 DOF) = 18 DOF total
 

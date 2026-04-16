@@ -67,14 +67,12 @@ from isaacgymenvs.utils.observation_action_utils_g1 import (
     DES_LEFT_HAND_POS,
     FINGERTIP_LINKS,
     JOINT_NAMES_ISAACGYM,
-    N_OBS,
     NUM_ARM_DOFS,
     NUM_FINGERTIPS,
     NUM_HAND_ARM_DOFS,
     NUM_HAND_DOFS,
     PALM_LINK,
-    Q_LOWER_LIMITS_np,
-    Q_UPPER_LIMITS_np,
+    OBS_NAMES,
     compute_joint_pos_targets,
     compute_observation,
     create_urdf_object,
@@ -1138,7 +1136,7 @@ class SimToolReal(VecTask):
         pose_dy, pose_dz = table_pose_dy, table_pose_dz + 0.25
 
         object_start_pose.p.y = robot_pose.p.y + pose_dy
-        object_start_pose.p.z = robot_pose.p.z + pose_dz
+        object_start_pose.p.z = pose_dz
 
         # HACK: Overwrite
         if self.cfg["env"]["objectStartPose"] is not None:
@@ -1809,8 +1807,8 @@ class SimToolReal(VecTask):
         robot_pose = gymapi.Transform()
         robot_pose.p = gymapi.Vec3(
             *get_axis_params(0.0, self.up_axis_idx)
-        ) + gymapi.Vec3(0.0, 0.8, 0)
-        robot_pose.r = gymapi.Quat(0, 0, 0, 1)
+        ) + gymapi.Vec3(0.0, 0.4, 0.79)
+        robot_pose.r = gymapi.Quat(0, 0, -0.7071068, 0.7071068)
 
         object_assets, object_rb_count, object_shapes_count = (
             self._load_main_object_asset()
@@ -1845,9 +1843,9 @@ class SimToolReal(VecTask):
         table_pose = gymapi.Transform()
         table_pose.p = gymapi.Vec3()
         table_pose.p.x = robot_pose.p.x
-        table_pose_dy, table_pose_dz = -0.8, self.cfg["env"]["tableResetZ"]
+        table_pose_dy, table_pose_dz = -0.4, self.cfg["env"]["tableResetZ"]
         table_pose.p.y = robot_pose.p.y + table_pose_dy
-        table_pose.p.z = robot_pose.p.z + table_pose_dz
+        table_pose.p.z = table_pose_dz
 
         table_rb_count = self.gym.get_asset_rigid_body_count(table_asset)
         table_shapes_count = self.gym.get_asset_rigid_shape_count(table_asset)

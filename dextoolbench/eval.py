@@ -29,7 +29,8 @@ from isaacgymenvs.utils.observation_action_utils_g1 import (
 from isaacgymenvs.utils.observation_action_utils_g1 import N_OBS as G1_N_OBS
 from isaacgymenvs.utils.utils import get_repo_root_dir
 
-TABLE_Z = 0.38
+TABLE_Z = 0.6
+ORIGIN_TABLE_Z = 0.38
 
 
 def quat_xyzw_to_wxyz(q):
@@ -90,7 +91,10 @@ class ViserServer:
             / "assets/urdf/g1_description/g1_29dof_with_left_linkerhand_actuated.urdf"
         )
         self.server.scene.add_frame(
-            "/robot", position=(0, 0.8, 0), wxyz=(1, 0, 0, 0), show_axes=False
+            "/robot",
+            position=(0, 0.4, 0.79),
+            wxyz=(0.7071068, 0, 0, -0.7071068),
+            show_axes=False,
         )
         self.robot = ViserUrdf(self.server, robot_urdf, root_node_name="/robot")
         self.robot.update_cfg(np.zeros(G1_NUM_HAND_ARM_DOFS))
@@ -98,7 +102,7 @@ class ViserServer:
         # Table
         table_urdf = get_repo_root_dir() / "assets" / self.table_urdf
         self.server.scene.add_frame(
-            "/table", position=(0, 0, TABLE_Z), wxyz=(1, 0, 0, 0), show_axes=False
+            "/table", position=(0, 0.0, TABLE_Z), wxyz=(1, 0, 0, 0), show_axes=False
         )
         # ViserUrdf(self.server, table_urdf, root_node_name="/table", mesh_color_override=(0, 0, 0, 0.5))
         ViserUrdf(
@@ -522,8 +526,8 @@ class EvalArgs:
     force_table_urdf: bool = True
     """If True, always use the default table URDF regardless of object category."""
 
-    z_offset: float = 0.03
-    """Z offset added to start pose to avoid the table."""
+    z_offset: float = TABLE_Z - ORIGIN_TABLE_Z
+    """Z offset added to start pose to account for table height difference."""
 
 
 TABLE_URDF = "urdf/table_narrow.urdf"
@@ -566,6 +570,8 @@ def main():
 
     # Downsample goals
     traj_data["goals"] = traj_data["goals"][:: args.downsample_factor]
+    for goal in traj_data["goals"]:
+        goal[2] += args.z_offset
 
     # Create environment
     env = create_env(
@@ -610,7 +616,7 @@ def main():
             # Initialization
             "task.env.useFixedInitObjectPose": True,
             "task.env.objectStartPose": traj_data["start_pose"],
-            "task.env.startArmHigher": True,
+            "task.env.startArmHigher": False, # [cdx] for g1 not higher
             # Forces/torques (all zero for eval)
             "task.env.forceScale": 0.0,
             "task.env.torqueScale": 0.0,

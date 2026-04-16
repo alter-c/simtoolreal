@@ -41,7 +41,7 @@ env:
   resetDofVelRandomInterval: 0.5
 
   # Table reset settings
-  tableResetZ: 0.38
+  tableResetZ: 0.6
   tableResetZRange: 0.01
   tableObjectZOffset: 0.25
 
@@ -161,8 +161,9 @@ env:
   targetVolumeRegionScale: 1.0 # scale the target volume region by this factor
   deltaGoalDistance: 0.1 # distance to the goal in meters
   deltaRotationDegrees: 90.0 # rotation of the goal in degrees
-  targetVolumeMins: [-0.35, -0.2, 0.6]  # Either null/None or a 3-element list of [x_min, y_min, z_min]
-  targetVolumeMaxs: [0.35, 0.2, 0.95]  # Either null/None or a 3-element list of [x_max, y_max, z_max]
+  # 调整目标坐标范围
+  targetVolumeMins: [-0.1, -0.1, 0.7]  # Either null/None or a 3-element list of [x_min, y_min, z_min]
+  targetVolumeMaxs: [0.4, 0.2, 0.95]  # Either null/None or a 3-element list of [x_max, y_max, z_max]
 
   # Delays and noise
   useObsDelay: True
@@ -193,7 +194,7 @@ env:
   tableFriction: 0.5
 
   asset:
-    robot: "urdf/g1_description/g1_29dof_with_left_linkerhand_actuated.urdf"
+    robot: "urdf/g1_description/g1_29dof_with_left_linkerhand.urdf"
 
     table: "urdf/table_narrow.urdf"
 

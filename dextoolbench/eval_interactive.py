@@ -48,8 +48,9 @@ if _SIDEBAR_IMG_PATH.exists():
 # ═══════════════════════════════════════════════════════════════════
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-TABLE_Z = 0.38
-Z_OFFSET = 0.03
+TABLE_Z = 0.6
+ORIGIN_TABLE_Z = 0.38
+Z_OFFSET = TABLE_Z - ORIGIN_TABLE_Z
 
 # Default joint positions matching IsaacGym reset
 # Arm: G1 left arm default position (placeholder, needs tuning)
@@ -61,8 +62,8 @@ from isaacgymenvs.utils.observation_action_utils_g1 import (
 )
 
 _ARM_DEFAULT = DES_LEFT_ARM_POS.copy()
-_ARM_DEFAULT[1] -= np.deg2rad(10)  # startArmHigher
-_ARM_DEFAULT[3] += np.deg2rad(10)  # startArmHigher
+# _ARM_DEFAULT[1] -= np.deg2rad(10)  # startArmHigher
+# _ARM_DEFAULT[3] += np.deg2rad(10)  # startArmHigher
 DEFAULT_DOF_POS = np.zeros(NUM_HAND_ARM_DOFS)
 DEFAULT_DOF_POS[:7] = _ARM_DEFAULT
 
@@ -277,6 +278,8 @@ def sim_worker(
         with open(traj_path) as f:
             traj_data = json.load(f)
         traj_data["start_pose"][2] += Z_OFFSET
+        for goal in traj_data["goals"]:
+            goal[2] += Z_OFFSET
 
         # Create environment
         env = create_env(
@@ -321,7 +324,7 @@ def sim_worker(
                 # Initialization
                 "task.env.useFixedInitObjectPose": True,
                 "task.env.objectStartPose": traj_data["start_pose"],
-                "task.env.startArmHigher": True,
+                "task.env.startArmHigher": False, # [cdx] for g1 not higher
                 # Forces/torques (all zero for eval)
                 "task.env.forceScale": 0.0,
                 "task.env.torqueScale": 0.0,
@@ -488,8 +491,8 @@ class InteractiveDemo:
         )
         self.server.scene.add_frame(
             "/robot",
-            position=(0, 0.8, 0),
-            wxyz=(1, 0, 0, 0),
+            position=(0, 0.4, 0.79),
+            wxyz=(0.7071068, 0, 0, -0.7071068),
             show_axes=False,
         )
         self.robot = ViserUrdf(self.server, robot_urdf, root_node_name="/robot")
@@ -503,7 +506,7 @@ class InteractiveDemo:
         self._clear_dynamic()
         t = self.server.scene.add_frame(
             "/table",
-            position=(0, 0, TABLE_Z),
+            position=(0, 0.0, TABLE_Z),
             wxyz=(1, 0, 0, 0),
             show_axes=False,
         )
@@ -590,7 +593,7 @@ class InteractiveDemo:
         self._clear_dynamic()
         t = self.server.scene.add_frame(
             "/table",
-            position=(0, 0, TABLE_Z),
+            position=(0, 0.0, TABLE_Z),
             wxyz=(1, 0, 0, 0),
             show_axes=False,
         )
