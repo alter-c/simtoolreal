@@ -24,10 +24,18 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 import viser
 from viser.extras import ViserUrdf
 
 from dextoolbench.metadata import DEXTOOLBENCH_DATA_STRUCTURE, OBJECT_NAME_TO_CATEGORY
+from isaacgymenvs.utils.observation_action_utils import (
+    DESIRED_ARM_POS_np,
+    T_W_R_np,
+    N_OBS,
+    NUM_DOFS,
+    DOF_CONFIG,
+)
 
 # Pre-load the sidebar overview image as a numpy array (once, at import time)
 _SIDEBAR_IMG_PATH = Path(__file__).resolve().parent.parent / "assets" / "urdf" / "dextoolbench" / "dextoolbench_objects_sidebar.png"
@@ -41,16 +49,17 @@ if _SIDEBAR_IMG_PATH.exists():
 # ═══════════════════════════════════════════════════════════════════
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-TABLE_Z = 0.38
-Z_OFFSET = 0.03
+TABLE_Z = 0.6
+ORIGIN_TABLE_Z = 0.38
+Z_OFFSET = TABLE_Z - ORIGIN_TABLE_Z
 
 # Default joint positions matching IsaacGym reset
 # Arm: sharpa variant with startArmHigher=True
-_ARM_DEFAULT = np.array([-1.571, 1.571, 0.0, 1.376, 0.0, 1.485, 1.308])
-_ARM_DEFAULT[1] -= np.deg2rad(10)  # startArmHigher
-_ARM_DEFAULT[3] += np.deg2rad(10)  # startArmHigher
-DEFAULT_DOF_POS = np.zeros(29)
-DEFAULT_DOF_POS[:7] = _ARM_DEFAULT
+_ARM_DEFAULT = DESIRED_ARM_POS_np
+# _ARM_DEFAULT[1] -= np.deg2rad(10)  # startArmHigher
+# _ARM_DEFAULT[3] += np.deg2rad(10)  # startArmHigher
+DEFAULT_DOF_POS = np.zeros(NUM_DOFS)
+DEFAULT_DOF_POS[:DOF_CONFIG["arm"]] = _ARM_DEFAULT
 
 # ── Per-task environment URDFs ─────────────────────────────────────
 
@@ -229,7 +238,8 @@ def sim_worker(conn, category, object_name, task_name, table_urdf,
     from deployment.rl_player import RlPlayer
     from deployment.isaac.isaac_env import create_env
 
-    n_act = 29
+    n_obs = N_OBS
+    n_act = DOF_CONFIG["arm"] + DOF_CONFIG["hand"]
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     try:
@@ -241,6 +251,8 @@ def sim_worker(conn, category, object_name, task_name, table_urdf,
         with open(traj_path) as f:
             traj_data = json.load(f)
         traj_data["start_pose"][2] += Z_OFFSET
+        for goal in traj_data["goals"]:
+            goal[2] += Z_OFFSET
 
         # Create environment
         env = create_env(
@@ -283,7 +295,7 @@ def sim_worker(conn, category, object_name, task_name, table_urdf,
                 # Initialization
                 "task.env.useFixedInitObjectPose": True,
                 "task.env.objectStartPose": traj_data["start_pose"],
-                "task.env.startArmHigher": True,
+                "task.env.startArmHigher": False,
                 # Forces/torques (all zero for eval)
                 "task.env.forceScale": 0.0,
                 "task.env.torqueScale": 0.0,
@@ -305,7 +317,7 @@ def sim_worker(conn, category, object_name, task_name, table_urdf,
 
         # Load policy
         env.set_env_state(torch.load(checkpoint_path)[0]["env_state"])
-        policy = RlPlayer(140, n_act, config_path, checkpoint_path, device, env.num_envs)
+        policy = RlPlayer(n_obs, n_act, config_path, checkpoint_path, device, env.num_envs)
 
         # Initial reset
         obs = _sim_reset(env, n_act, device)
@@ -427,11 +439,17 @@ class InteractiveDemo:
         self.server.scene.add_grid("/ground", width=2, height=2, cell_size=0.1)
 
         robot_urdf = (
-            REPO_ROOT / "assets" / "urdf" / "kuka_sharpa_description"
-            / "iiwa14_left_sharpa_adjusted_restricted.urdf"
+            REPO_ROOT / "assets" / "urdf" / "unitree_linkerhand_description"
+            / "g1_29dof_left_linkerhand_adjusted.urdf"
         )
+        robot_x, robot_y, robot_z = T_W_R_np[:3, 3]
+        robot_qx, robot_qy, robot_qz, robot_qw = R.from_matrix(T_W_R_np[:3, :3]).as_quat()
+
         self.server.scene.add_frame(
-            "/robot", position=(0, 0.8, 0), wxyz=(1, 0, 0, 0), show_axes=False,
+            "/robot", 
+            position=(robot_x, robot_y, robot_z), 
+            wxyz=(robot_qw, robot_qx, robot_qy, robot_qz), 
+            show_axes=False,
         )
         self.robot = ViserUrdf(self.server, robot_urdf, root_node_name="/robot")
         self.robot.update_cfg(DEFAULT_DOF_POS)

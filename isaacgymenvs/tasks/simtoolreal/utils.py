@@ -38,170 +38,91 @@ def populate_dof_properties(hand_arm_dof_props, arm_dofs: int, hand_dofs: int) -
 
     import numpy as np
 
-    kuka_efforts = [300, 300, 300, 300, 300, 300, 300]
-    kuka_stiffnesses = [600, 600, 500, 400, 200, 200, 200]
-    kuka_dampings = [
-        27.027026473513512,
-        27.027026473513512,
-        24.672186769721083,
-        22.067474708266914,
-        9.752538131173853,
-        9.147747263670984,
-        9.147747263670984,
-    ]
-    kuka_gear_ratios = [160, 160, 160, 160, 100, 160, 160]
-    kuka_rotor_inertias = [
-        0.0001321,
-        0.0001321,
-        0.0001321,
-        0.0001321,
-        0.0001321,
-        0.0000454,
-        0.0000454,
-    ]
+    arm_efforts = [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
+    arm_stiffnesses = [75.0, 75.0, 75.0, 75.0, 75.0, 75.0, 75.0] # Kp
+    arm_dampings = [2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0]  # Kd
+    arm_armatures = [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01] 
 
     assert (
-        len(kuka_stiffnesses)
-        == len(kuka_dampings)
-        == len(kuka_gear_ratios)
-        == len(kuka_rotor_inertias)
+        len(arm_efforts)
+        == len(arm_stiffnesses)
+        == len(arm_dampings)
+        == len(arm_armatures)
         == arm_dofs
     ), (
-        f"{len(kuka_stiffnesses)} != {len(kuka_dampings)} != {len(kuka_gear_ratios)} != {len(kuka_rotor_inertias)} != {arm_dofs}"
+        f"{len(arm_stiffnesses)} != {len(arm_dampings)} != {len(arm_armatures)} != {arm_dofs}"
     )
-    kuka_reflected_inertias = [
-        n * n * J for n, J in zip(kuka_gear_ratios, kuka_rotor_inertias)
-    ]
-    computed_kuka_armatures = kuka_reflected_inertias
-    kuka_armatures = [
-        3.3817600000000003,
-        3.3817600000000003,
-        3.3817600000000003,
-        3.3817600000000003,
-        1.3210000000000002,
-        1.16224,
-        1.16224,
-    ]
-    assert np.allclose(computed_kuka_armatures, kuka_armatures), (
-        f"computed_kuka_armatures: {computed_kuka_armatures}, kuka_armatures: {kuka_armatures}"
-    )
+    # # TODO completed arm armature parameters
+    # arm_gear_ratios = [160, 160, 160, 160, 100, 160, 160]
+    # arm_rotor_inertias = [
+    #     0.0001321,
+    #     0.0001321,
+    #     0.0001321,
+    #     0.0001321,
+    #     0.0001321,
+    #     0.0000454,
+    #     0.0000454,
+    # ]
+    # arm_armatures = [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01]  
+    # arm_reflected_inertias = [
+    #     n * n * J for n, J in zip(arm_gear_ratios, arm_rotor_inertias)
+    # ]
+    # computed_arm_armatures = arm_reflected_inertias
+    # assert np.allclose(computed_arm_armatures, arm_armatures), (
+    #     f"computed_arm_armatures: {computed_arm_armatures}, arm_armatures: {arm_armatures}"
+    # )
 
-    kuka_damping_ratio = 0.3
-    computed_kuka_dampings = [
-        2 * kuka_damping_ratio * np.sqrt(kuka_stiffnesses[i] * kuka_armatures[i])
-        for i in range(arm_dofs)
-    ]
-    assert np.allclose(computed_kuka_dampings, kuka_dampings), (
-        f"computed_kuka_dampings: {computed_kuka_dampings}, kuka_dampings: {kuka_dampings}"
-    )
+    # arm_damping_ratio = 0.3
+    # computed_arm_dampings = [
+    #     2 * arm_damping_ratio * np.sqrt(arm_stiffnesses[i] * arm_armatures[i])
+    #     for i in range(arm_dofs)
+    # ]
+    # assert np.allclose(computed_arm_dampings, arm_dampings), (
+    #     f"computed_arm_dampings: {computed_arm_dampings}, arm_dampings: {arm_dampings}"
+    # )
 
-    hand_arm_dof_props["stiffness"][0:arm_dofs] = kuka_stiffnesses
-    hand_arm_dof_props["damping"][0:arm_dofs] = kuka_dampings
     # Not setting armature matches real KUKA robot behavior
-    # hand_arm_dof_props["armature"][0:arm_dofs] = kuka_armatures
-    hand_arm_dof_props["effort"][0:arm_dofs] = kuka_efforts
+    # hand_arm_dof_props["armature"][0:arm_dofs] = arm_armatures
+
+    hand_arm_dof_props["stiffness"][0:arm_dofs] = arm_stiffnesses
+    hand_arm_dof_props["damping"][0:arm_dofs] = arm_dampings
+    hand_arm_dof_props["effort"][0:arm_dofs] = arm_efforts
+    hand_arm_dof_props["armature"][0:arm_dofs] = arm_armatures
 
     # Assumes hand order
-    # ['left_thumb_CMC_FE', 'left_thumb_CMC_AA', 'left_thumb_MCP_FE', 'left_thumb_MCP_AA', 'left_thumb_IP',
-    #  'left_index_MCP_FE', 'left_index_MCP_AA', 'left_index_PIP', 'left_index_DIP',
-    #  'left_middle_MCP_FE', 'left_middle_MCP_AA', 'left_middle_PIP', 'left_middle_DIP',
-    #  'left_ring_MCP_FE', 'left_ring_MCP_AA', 'left_ring_PIP', 'left_ring_DIP',
-    #  'left_pinky_CMC', 'left_pinky_MCP_FE', 'left_pinky_MCP_AA', 'left_pinky_PIP', 'left_pinky_DIP']
+    # [ lh_thumb_cmc_yaw, lh_thumb_cmc_pitch, lh_thumb_ip,
+    #   lh_index_mcp_pitch, lh_index_dip, 
+    #   lh_middle_mcp_pitch, lh_middle_dip,
+    #   lh_ring_mcp_pitch, lh_ring_dip, 
+    #   lh_pinky_mcp_pitch, lh_pinky_dip]
+    # LinkerHand O6 left hand PD parameters
     hand_stiffnesses = [
-        6.95,
-        13.2,
-        4.76,
-        6.62,
-        0.9,
-        4.76,
-        6.62,
-        0.9,
-        0.9,
-        4.76,
-        6.62,
-        0.9,
-        0.9,
-        4.76,
-        6.62,
-        0.9,
-        0.9,
-        1.38,
-        4.76,
-        6.62,
-        0.9,
-        0.9,
+        13.2, 6.95, 0.9,
+        4.76, 0.9,
+        4.76, 0.9,
+        4.76, 0.9,
+        4.76, 0.9,
     ]
     hand_dampings = [
-        0.28676845,
-        0.40845109,
-        0.20394083,
-        0.24044435,
-        0.04190723,
-        0.20859232,
-        0.24595532,
-        0.04243185,
-        0.03504461,
-        0.2085923,
-        0.24595532,
-        0.04243185,
-        0.03504461,
-        0.20859226,
-        0.24595528,
-        0.04243183,
-        0.0350446,
-        0.02782345,
-        0.20859229,
-        0.24595528,
-        0.04243183,
-        0.0350446,
+        0.287, 0.408, 0.042,
+        0.208, 0.035,
+        0.208, 0.035,
+        0.208, 0.035,
+        0.208, 0.035,
     ]
     hand_armatures = [
-        0.0032,
-        0.0032,
-        0.00265,
-        0.00265,
-        0.0006,
-        0.00265,
-        0.00265,
-        0.0006,
-        0.00042,
-        0.00265,
-        0.00265,
-        0.0006,
-        0.00042,
-        0.00265,
-        0.00265,
-        0.0006,
-        0.00042,
-        0.00012,
-        0.00265,
-        0.00265,
-        0.0006,
-        0.00042,
+        0.003, 0.003, 0.0006,
+        0.002, 0.0004,
+        0.002, 0.0004,
+        0.002, 0.0004,
+        0.002, 0.0004,
     ]
     hand_frictions = [
-        0.132,
-        0.132,
-        0.07456,
-        0.07456,
-        0.01276,
-        0.07456,
-        0.07456,
-        0.01276,
-        0.00378738,
-        0.07456,
-        0.07456,
-        0.01276,
-        0.00378738,
-        0.07456,
-        0.07456,
-        0.01276,
-        0.00378738,
-        0.012,
-        0.07456,
-        0.07456,
-        0.01276,
-        0.00378738,
+        0.132, 0.132, 0.01276,
+        0.075, 0.0038,
+        0.075, 0.0038,
+        0.075, 0.0038,
+        0.075, 0.0038,
     ]
     assert (
         len(hand_stiffnesses)
