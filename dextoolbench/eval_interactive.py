@@ -34,7 +34,9 @@ from isaacgymenvs.utils.observation_action_utils import (
     T_W_R_np,
     N_OBS,
     NUM_DOFS,
+    NUM_ACTUATED_DOFS,
     DOF_CONFIG,
+    scale
 )
 
 # Pre-load the sidebar overview image as a numpy array (once, at import time)
@@ -154,7 +156,7 @@ def quat_xyzw_to_wxyz(q):
 def _sim_get_state(env, obs, joint_lower, joint_upper, n_act):
     """Extract visualisation state from the env."""
     obs_np = obs[0].cpu().numpy()
-    joint_pos = 0.5 * (obs_np[:n_act] + 1.0) * (joint_upper - joint_lower) + joint_lower
+    joint_pos = scale(obs_np[:NUM_DOFS], joint_lower, joint_upper) # note: NUM_DOFS != n_act
     return (
         joint_pos,
         env.object_state[0, :7].cpu().numpy(),
@@ -239,7 +241,7 @@ def sim_worker(conn, category, object_name, task_name, table_urdf,
     from deployment.isaac.isaac_env import create_env
 
     n_obs = N_OBS
-    n_act = DOF_CONFIG["arm"] + DOF_CONFIG["hand"]
+    n_act = NUM_ACTUATED_DOFS
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     try:
@@ -312,8 +314,9 @@ def sim_worker(conn, category, object_name, task_name, table_urdf,
             },
         )
 
-        joint_lower = env.arm_hand_dof_lower_limits[:n_act].cpu().numpy()
-        joint_upper = env.arm_hand_dof_upper_limits[:n_act].cpu().numpy()
+        # note: NUM_DOFS != n_act
+        joint_lower = env.arm_hand_dof_lower_limits[:NUM_DOFS].cpu().numpy()
+        joint_upper = env.arm_hand_dof_upper_limits[:NUM_DOFS].cpu().numpy()
 
         # Load policy
         env.set_env_state(torch.load(checkpoint_path)[0]["env_state"])

@@ -36,8 +36,8 @@ JOINT_NAMES_ISAACGYM = [
 
 DOF_CONFIG = {
     "arm": 7,
-    "hand": 11,
-    "mimic": 0, # for test
+    "hand": 6,
+    "mimic": 5,
 }
 NUM_DOFS = sum(DOF_CONFIG.values()) # 18
 
@@ -62,6 +62,13 @@ MIMIC_JOINT_MAP = {
     15: (14, 0.89),
     17: (16, 0.89),
 }
+NUM_ACTUATED_DOFS = len(ACTION_JOINT_INDEX) # 13
+assert NUM_ACTUATED_DOFS == DOF_CONFIG["arm"] + DOF_CONFIG["hand"], (
+    f"NUM_ACTUATED_DOFS: {NUM_ACTUATED_DOFS}, expected: {DOF_CONFIG['arm'] + DOF_CONFIG['hand']}"
+)
+assert len(MIMIC_JOINT_MAP) == DOF_CONFIG["mimic"], (
+    f"len(MIMIC_JOINT_MAP): {len(MIMIC_JOINT_MAP)}, expected: {DOF_CONFIG['mimic']}"
+)
 # =============== ROBOT CUSTOM CONFIG ===============
 
 
@@ -446,8 +453,9 @@ def compute_joint_pos_targets(
     dt: float,
 ) -> np.ndarray:
     N = actions.shape[0]
+    A = NUM_ACTUATED_DOFS
     J = NUM_DOFS
-    assert actions.shape == (N, J), f"actions.shape: {actions.shape}, expected: (N, J)"
+    assert actions.shape == (N, A), f"actions.shape: {actions.shape}, expected: (N, A)"
     assert prev_targets.shape == (N, J), (
         f"prev_targets.shape: {prev_targets.shape}, expected: (N, J)"
     )
@@ -466,6 +474,7 @@ def compute_joint_pos_targets(
         f"arm_moving_average: {arm_moving_average}, expected: (0.0, 1.0)"
     )
 
+    cur_targets = prev_targets.copy()
     # arm
     arm_dof = DOF_CONFIG["arm"]
     cur_targets[:, :arm_dof] = (
@@ -482,22 +491,34 @@ def compute_joint_pos_targets(
     )
     
     # hand
+    actuated_dof = NUM_ACTUATED_DOFS
     total_dof = NUM_DOFS
-    cur_targets = prev_targets.copy()
-    cur_targets[:, arm_dof:total_dof] = scale(
-        actions[:, arm_dof:total_dof],
-        q_lower_limits[arm_dof:total_dof],
-        q_upper_limits[arm_dof:total_dof],
-    )
-    cur_targets[:, arm_dof:total_dof] = (
-        hand_moving_average * cur_targets[:, arm_dof:total_dof]
-        + (1.0 - hand_moving_average) * prev_targets[:, arm_dof:total_dof]
-    )
-    cur_targets[:, arm_dof:total_dof] = tensor_clamp(
-        cur_targets[:, arm_dof:total_dof],
-        q_lower_limits[arm_dof:total_dof],
-        q_upper_limits[arm_dof:total_dof],
-    )
+    # here just compute by iterating for easy understanding
+    # actuated joints
+    for i in range(arm_dof, actuated_dof):
+        joint_idx = ACTION_JOINT_INDEX[i]
+        cur_targets[:, joint_idx] = scale(
+            actions[:, i],
+            q_lower_limits[joint_idx],
+            q_upper_limits[joint_idx],
+        )
+        cur_targets[:, joint_idx] = (
+            hand_moving_average * cur_targets[:, joint_idx]
+            + (1.0 - hand_moving_average) * prev_targets[:, joint_idx]
+        )
+        cur_targets[:, joint_idx] = tensor_clamp(
+            cur_targets[:, joint_idx],
+            q_lower_limits[joint_idx],
+            q_upper_limits[joint_idx],
+        )
+    # mimic joints
+    for mimic_idx, (master_idx, multiplier) in MIMIC_JOINT_MAP.items():
+        cur_targets[:, mimic_idx] = cur_targets[:, master_idx] * multiplier
+        cur_targets[:, mimic_idx] = tensor_clamp(
+            cur_targets[:, mimic_idx],
+            q_lower_limits[mimic_idx],
+            q_upper_limits[mimic_idx],
+        )
 
     return cur_targets
 

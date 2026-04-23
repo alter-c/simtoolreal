@@ -69,6 +69,7 @@ from isaacgymenvs.utils.observation_action_utils import (
     PALM_LINK_NAME,
     FINGERTIP_LINK_NAMES,
     NUM_DOFS,
+    NUM_ACTUATED_DOFS,
     NUM_FINGERS,
     ACTION_JOINT_INDEX,
     MIMIC_JOINT_MAP,
@@ -246,17 +247,10 @@ class SimToolReal(VecTask):
         self.num_mimic_dofs = DOF_CONFIG["mimic"]
         self.num_fingertips = NUM_FINGERS 
         self.num_hand_arm_dofs = NUM_DOFS
-        self.num_robot_actions = self.num_arm_dofs + self.num_hand_dofs # only non-mimic joints for actions
+        self.num_robot_actions = NUM_ACTUATED_DOFS # only non-mimic joints for actions
         if self.privileged_actions:
             self.num_robot_actions += 3
         self.has_mimic = self.num_mimic_dofs > 0
-        if self.has_mimic:
-            self.action_joint_index = ACTION_JOINT_INDEX
-            self.mimic_joint_map = MIMIC_JOINT_MAP
-            assert len(self.action_joint_index) == self.num_robot_actions \
-                and len(self.mimic_joint_map) == self.num_mimic_dofs, (
-                "Action joint index or mimic joint map dosen't match the number of robot actions or mimic dofs"
-            )
 
         ## link settings
         self.palm_link = PALM_LINK_NAME
@@ -353,6 +347,21 @@ class SimToolReal(VecTask):
             virtual_screen_capture=virtual_screen_capture,
             force_render=force_render,
         )
+
+        # precompute mimic index tensors after init device
+        if self.has_mimic:
+            self.hand_joint_index = torch.tensor(
+                ACTION_JOINT_INDEX[self.num_arm_dofs:], device=self.device
+            )
+            self.mimic_joint_index = torch.tensor(
+                list(MIMIC_JOINT_MAP.keys()), device=self.device
+            )
+            self.master_joint_index = torch.tensor(
+                [val[0] for val in MIMIC_JOINT_MAP.values()], device=self.device
+            )
+            self.mimic_multipliers = torch.tensor(
+                [val[1] for val in MIMIC_JOINT_MAP.values()], device=self.device
+            )
 
         # Index of environment to view in viewer and camera
         self.index_to_view = 0
@@ -458,7 +467,7 @@ class SimToolReal(VecTask):
             self.desired_arm_pos[1] -= np.deg2rad(10)
             self.desired_arm_pos[3] += np.deg2rad(10)
 
-        self.hand_arm_default_dof_pos[:7] = self.desired_arm_pos
+        self.hand_arm_default_dof_pos[:self.num_arm_dofs] = self.desired_arm_pos
 
         self.arm_hand_dof_state = self.dof_state.view(self.num_envs, -1, 2)[
             :, : self.num_hand_arm_dofs
@@ -1971,7 +1980,7 @@ class SimToolReal(VecTask):
                 segmentation_id,
             )
             populate_dof_properties(
-                robot_dof_props, self.num_arm_dofs, self.num_hand_dofs
+                robot_dof_props, self.num_arm_dofs, self.num_hand_dofs + self.num_mimic_dofs
             )
 
             self.gym.set_actor_dof_properties(env_ptr, robot_actor, robot_dof_props)
@@ -3736,48 +3745,77 @@ class SimToolReal(VecTask):
         if self.use_relative_control:
             # arm relative to current position
             targets = (
-                self.arm_hand_dof_pos[:, :7]
-                + self.hand_dof_speed_scale * self.dt * self.actions[:, :7]
+                self.arm_hand_dof_pos[:, :self.num_arm_dofs]
+                + self.hand_dof_speed_scale * self.dt * self.actions[:, :self.num_arm_dofs]
             )
-            self.cur_targets[:, :7] = tensor_clamp(
+            self.cur_targets[:, :self.num_arm_dofs] = tensor_clamp(
                 targets,
-                self.arm_hand_dof_lower_limits[:7],
-                self.arm_hand_dof_upper_limits[:7],
+                self.arm_hand_dof_lower_limits[:self.num_arm_dofs],
+                self.arm_hand_dof_upper_limits[:self.num_arm_dofs],
             )
         else:
             # arm relative to previous target
             targets = (
-                self.prev_targets[:, :7]
-                + self.hand_dof_speed_scale * self.dt * self.actions[:, :7]
+                self.prev_targets[:, :self.num_arm_dofs]
+                + self.hand_dof_speed_scale * self.dt * self.actions[:, :self.num_arm_dofs]
             )
-            self.cur_targets[:, :7] = tensor_clamp(
+            self.cur_targets[:, :self.num_arm_dofs] = tensor_clamp(
                 targets,
-                self.arm_hand_dof_lower_limits[:7],
-                self.arm_hand_dof_upper_limits[:7],
+                self.arm_hand_dof_lower_limits[:self.num_arm_dofs],
+                self.arm_hand_dof_upper_limits[:self.num_arm_dofs],
             )
 
         # Smooth arm
-        self.cur_targets[:, :7] = (
-            self.arm_moving_average * self.cur_targets[:, :7]
-            + (1.0 - self.arm_moving_average) * self.prev_targets[:, :7]
+        self.cur_targets[:, :self.num_arm_dofs] = (
+            self.arm_moving_average * self.cur_targets[:, :self.num_arm_dofs]
+            + (1.0 - self.arm_moving_average) * self.prev_targets[:, :self.num_arm_dofs]
         )
 
         # hand
-        self.cur_targets[:, 7 : self.num_hand_arm_dofs] = scale(
-            actions[:, 7 : self.num_hand_arm_dofs],
-            self.arm_hand_dof_lower_limits[7 : self.num_hand_arm_dofs],
-            self.arm_hand_dof_upper_limits[7 : self.num_hand_arm_dofs],
-        )
-        self.cur_targets[:, 7 : self.num_hand_arm_dofs] = (
-            self.hand_moving_average * self.cur_targets[:, 7 : self.num_hand_arm_dofs]
-            + (1.0 - self.hand_moving_average)
-            * self.prev_targets[:, 7 : self.num_hand_arm_dofs]
-        )
-        self.cur_targets[:, 7 : self.num_hand_arm_dofs] = tensor_clamp(
-            self.cur_targets[:, 7 : self.num_hand_arm_dofs],
-            self.arm_hand_dof_lower_limits[7 : self.num_hand_arm_dofs],
-            self.arm_hand_dof_upper_limits[7 : self.num_hand_arm_dofs],
-        )
+        if self.has_mimic:
+            # compute in parallel to accelerate
+            # TODO check correct
+            # actuated joints
+            self.cur_targets[:, self.hand_joint_index] = scale(
+                actions[:, self.num_arm_dofs : self.num_robot_actions],
+                self.arm_hand_dof_lower_limits[self.hand_joint_index],
+                self.arm_hand_dof_upper_limits[self.hand_joint_index],
+            )
+            self.cur_targets[:, self.hand_joint_index] = (
+                self.hand_moving_average * self.cur_targets[:, self.hand_joint_index]
+                + (1.0 - self.hand_moving_average)
+                * self.prev_targets[:, self.hand_joint_index]
+            )
+            self.cur_targets[:, self.hand_joint_index] = tensor_clamp(
+                self.cur_targets[:, self.hand_joint_index],
+                self.arm_hand_dof_lower_limits[self.hand_joint_index],
+                self.arm_hand_dof_upper_limits[self.hand_joint_index],
+            )
+            # mimic joints 
+            self.cur_targets[:, self.mimic_joint_index] = (
+                self.mimic_multipliers * self.cur_targets[:, self.master_joint_index]
+            )
+            self.cur_targets[:, self.mimic_joint_index] = tensor_clamp(
+                self.cur_targets[:, self.mimic_joint_index],
+                self.arm_hand_dof_lower_limits[self.mimic_joint_index],
+                self.arm_hand_dof_upper_limits[self.mimic_joint_index],
+            )
+        else:
+            self.cur_targets[:, self.num_arm_dofs : self.num_hand_arm_dofs] = scale(
+                actions[:, self.num_arm_dofs : self.num_hand_arm_dofs],
+                self.arm_hand_dof_lower_limits[self.num_arm_dofs : self.num_hand_arm_dofs],
+                self.arm_hand_dof_upper_limits[self.num_arm_dofs : self.num_hand_arm_dofs],
+            )
+            self.cur_targets[:, self.num_arm_dofs : self.num_hand_arm_dofs] = (
+                self.hand_moving_average * self.cur_targets[:, self.num_arm_dofs : self.num_hand_arm_dofs]
+                + (1.0 - self.hand_moving_average)
+                * self.prev_targets[:, self.num_arm_dofs : self.num_hand_arm_dofs]
+            )
+            self.cur_targets[:, self.num_arm_dofs : self.num_hand_arm_dofs] = tensor_clamp(
+                self.cur_targets[:, self.num_arm_dofs : self.num_hand_arm_dofs],
+                self.arm_hand_dof_lower_limits[self.num_arm_dofs : self.num_hand_arm_dofs],
+                self.arm_hand_dof_upper_limits[self.num_arm_dofs : self.num_hand_arm_dofs],
+            )
 
         # Default CHECK_WITH_COMPUTED_JOINT_POS_TARGETS = False
         # Set to True to check if the computed joint pos targets are correct
