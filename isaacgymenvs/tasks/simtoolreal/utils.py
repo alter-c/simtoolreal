@@ -38,7 +38,15 @@ def populate_dof_properties(hand_arm_dof_props, arm_dofs: int, hand_dofs: int) -
 
     import numpy as np
 
-    # G1 left arm PD controller parameters
+    # Unitree G1 left arm PD controller parameters
+    # 7 arm joints:
+    # [ left_shoulder_pitch_joint,
+    #   left_shoulder_yaw_joint,
+    #   left_shoulder_roll_joint,
+    #   left_elbow_joint,
+    #   left_wrist_roll_joint,
+    #   left_wrist_pitch_joint,
+    #   left_wrist_yaw_joint]
     arm_stiffnesses = [75.0, 75.0, 75.0, 75.0, 75.0, 75.0, 75.0] # Kp
     arm_dampings = [2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0]  # Kd
 

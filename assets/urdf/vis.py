@@ -10,7 +10,7 @@ server = viser.ViserServer(
     verbose=True,
 )
 
-urdf = yourdfpy.URDF.load("./g1_description/g1_29dof_with_linkerhand.urdf")
+urdf = yourdfpy.URDF.load("./g1_description/g1_29dof_with_left_sharpa_correct.urdf")
 
 viser_urdf = ViserUrdf(
     server,

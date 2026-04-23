@@ -24,6 +24,7 @@ from deployment.isaac.isaac_env import create_env
 from deployment.rl_player import RlPlayer
 from dextoolbench.objects import NAME_TO_OBJECT
 from isaacgymenvs.utils.observation_action_utils_g1 import (
+    NUM_ACTUATED_DOFS as G1_NUM_ACTUATED_DOFS,
     NUM_HAND_ARM_DOFS as G1_NUM_HAND_ARM_DOFS,
 )
 from isaacgymenvs.utils.observation_action_utils_g1 import N_OBS as G1_N_OBS
@@ -92,7 +93,7 @@ class ViserServer:
         )
         self.server.scene.add_frame(
             "/robot",
-            position=(0, 0.4, 0.79),
+            position=(0, 0.35, 0.79),
             wxyz=(0.7071068, 0, 0, -0.7071068),
             show_axes=False,
         )
@@ -284,16 +285,20 @@ class EvalRunner:
     ):
         self.env = env
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.n_act = G1_NUM_HAND_ARM_DOFS
+        self.n_act = G1_NUM_ACTUATED_DOFS
         self.n_obs = G1_N_OBS
         self.control_hz = 60.0
         self.control_dt = 1.0 / self.control_hz
         self.record_fps = 10
         self.record_interval = int(self.control_hz / self.record_fps)
 
-        # Joint limits for denormalization
-        self.joint_lower = env.arm_hand_dof_lower_limits[: self.n_act].cpu().numpy()
-        self.joint_upper = env.arm_hand_dof_upper_limits[: self.n_act].cpu().numpy()
+        # Joint limits for denormalization (all 18 DOFs for observation)
+        self.joint_lower = (
+            env.arm_hand_dof_lower_limits[:G1_NUM_HAND_ARM_DOFS].cpu().numpy()
+        )
+        self.joint_upper = (
+            env.arm_hand_dof_upper_limits[:G1_NUM_HAND_ARM_DOFS].cpu().numpy()
+        )
 
         # Load policy
         self.env.set_env_state(torch.load(checkpoint_path)[0]["env_state"])
@@ -616,7 +621,7 @@ def main():
             # Initialization
             "task.env.useFixedInitObjectPose": True,
             "task.env.objectStartPose": traj_data["start_pose"],
-            "task.env.startArmHigher": False, # [cdx] for g1 not higher
+            "task.env.startArmHigher": False,  # [cdx] for g1 not higher
             # Forces/torques (all zero for eval)
             "task.env.forceScale": 0.0,
             "task.env.torqueScale": 0.0,

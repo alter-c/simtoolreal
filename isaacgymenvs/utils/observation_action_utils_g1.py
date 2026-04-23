@@ -37,9 +37,35 @@ def tensor_clamp(t, min_t, max_t):
 
 
 NUM_ARM_DOFS = 7
-NUM_HAND_DOFS = 11
-NUM_HAND_ARM_DOFS = NUM_ARM_DOFS + NUM_HAND_DOFS  # 18
+NUM_HAND_DOFS = 6
+NUM_MIMIC_DOFS = 5
+NUM_HAND_ARM_DOFS = NUM_ARM_DOFS + NUM_HAND_DOFS + NUM_MIMIC_DOFS  # 18
+NUM_ACTUATED_DOFS = NUM_ARM_DOFS + NUM_HAND_DOFS  # 13
 NUM_FINGERTIPS = 5
+
+# JOINT_NAMES_ISAACGYM = [
+#     "left_shoulder_pitch_joint",
+#     "left_shoulder_roll_joint",
+#     "left_shoulder_yaw_joint",
+#     "left_elbow_joint",
+#     "left_wrist_roll_joint",
+#     "left_wrist_pitch_joint",
+#     "left_wrist_yaw_joint",
+#     "lh_thumb_cmc_yaw",
+#     "lh_thumb_cmc_pitch",
+#     "lh_thumb_ip",
+#     "lh_index_mcp_pitch",
+#     "lh_index_dip",
+#     "lh_middle_mcp_pitch",
+#     "lh_middle_dip",
+#     "lh_ring_mcp_pitch",
+#     "lh_ring_dip",
+#     "lh_pinky_mcp_pitch",
+#     "lh_pinky_dip",
+# ]
+# IsaacGym sorts by alphabetical order when "depth" is equal
+# While other libraries simply use the order specified in the urdf when "depth" is equal
+# We therefore add left_1, left_2, left_3, left_4, left_5 to the clearly enforce this desired order
 
 JOINT_NAMES_ISAACGYM = [
     "left_shoulder_pitch_joint",
@@ -49,16 +75,16 @@ JOINT_NAMES_ISAACGYM = [
     "left_wrist_roll_joint",
     "left_wrist_pitch_joint",
     "left_wrist_yaw_joint",
-    "lh_thumb_cmc_yaw",
+    "lh_1_thumb_cmc_yaw",
     "lh_thumb_cmc_pitch",
     "lh_thumb_ip",
-    "lh_index_mcp_pitch",
+    "lh_2_index_mcp_pitch",
     "lh_index_dip",
-    "lh_middle_mcp_pitch",
+    "lh_3_middle_mcp_pitch",
     "lh_middle_dip",
-    "lh_ring_mcp_pitch",
+    "lh_4_ring_mcp_pitch",
     "lh_ring_dip",
-    "lh_pinky_mcp_pitch",
+    "lh_5_pinky_mcp_pitch",
     "lh_pinky_dip",
 ]
 
@@ -90,6 +116,17 @@ DES_LEFT_ARM_POS = np.array(
 )
 
 DES_LEFT_HAND_POS = np.zeros(NUM_HAND_DOFS, dtype=np.float32)
+
+MIMIC_MAP = {
+    9: (8, 2.29),
+    11: (10, 0.89),
+    13: (12, 0.89),
+    15: (14, 0.89),
+    17: (16, 0.89),
+}
+
+POLICY_ACTION_TO_JOINT_INDEX = list(range(7)) + [7, 8, 10, 12, 14, 16]
+assert len(POLICY_ACTION_TO_JOINT_INDEX) == NUM_ACTUATED_DOFS
 
 Q_LOWER_LIMITS_np = np.array(
     [
@@ -206,17 +243,27 @@ T_W_R_np[0, 0] = 0.0
 T_W_R_np[0, 1] = 1.0
 T_W_R_np[1, 0] = -1.0
 T_W_R_np[1, 1] = 0.0
-T_W_R_np[:3, 3] = np.array([0.0, 0.4, 0.79])
+T_W_R_np[:3, 3] = np.array([0.0, 0.35, 0.79])
 
 PALM_OFFSET_np = np.array([0.0, 0.0, 0.13], dtype=np.float32)
 
+# FINGERTIP_OFFSETS_np = np.array(
+#     [
+#         [0.02, 0.002, 0],
+#         [0.02, 0.002, 0],
+#         [0.02, 0.002, 0],
+#         [0.02, 0.002, 0],
+#         [0.02, 0.002, 0],
+#     ],
+#     dtype=np.float32,
+# )
 FINGERTIP_OFFSETS_np = np.array(
     [
-        [0.02, 0.002, 0],
-        [0.02, 0.002, 0],
-        [0.02, 0.002, 0],
-        [0.02, 0.002, 0],
-        [0.02, 0.002, 0],
+        [0.002, 0, 0.02],
+        [0.002, 0, 0.02],
+        [0.002, 0, 0.02],
+        [0.002, 0, 0.02],
+        [0.002, 0, 0.02],
     ],
     dtype=np.float32,
 )
@@ -294,7 +341,7 @@ def create_urdf_object(
     if robot_name == "g1_29dof_with_left_linkerhand":
         urdf_path = (
             asset_root
-            / "urdf/g1_description/g1_29dof_with_left_linkerhand_actuated.urdf"
+            / "urdf/g1_description/g1_29dof_with_left_linkerhand_correct.urdf"
         )
     else:
         raise ValueError(f"Invalid robot name: {robot_name}")
@@ -456,9 +503,10 @@ def compute_joint_pos_targets(
     dt: float,
 ) -> np.ndarray:
     N = actions.shape[0]
+    A = NUM_ACTUATED_DOFS
     J = NUM_HAND_ARM_DOFS
-    assert actions.shape == (N, J), (
-        f"actions.shape: {actions.shape}, expected: (N, {J})"
+    assert actions.shape == (N, A), (
+        f"actions.shape: {actions.shape}, expected: (N, {A})"
     )
     assert prev_targets.shape == (N, J), (
         f"prev_targets.shape: {prev_targets.shape}, expected: (N, {J})"
@@ -480,22 +528,6 @@ def compute_joint_pos_targets(
 
     cur_targets = prev_targets.copy()
 
-    # Hand joints: scale action to joint limits, then EMA
-    cur_targets[:, NUM_ARM_DOFS:] = scale(
-        actions[:, NUM_ARM_DOFS:],
-        q_lower_limits[NUM_ARM_DOFS:],
-        q_upper_limits[NUM_ARM_DOFS:],
-    )
-    cur_targets[:, NUM_ARM_DOFS:] = (
-        hand_moving_average * cur_targets[:, NUM_ARM_DOFS:]
-        + (1.0 - hand_moving_average) * prev_targets[:, NUM_ARM_DOFS:]
-    )
-    cur_targets[:, NUM_ARM_DOFS:] = tensor_clamp(
-        cur_targets[:, NUM_ARM_DOFS:],
-        q_lower_limits[NUM_ARM_DOFS:],
-        q_upper_limits[NUM_ARM_DOFS:],
-    )
-
     # Arm joints: delta position control, then EMA
     cur_targets[:, :NUM_ARM_DOFS] = (
         prev_targets[:, :NUM_ARM_DOFS]
@@ -510,6 +542,34 @@ def compute_joint_pos_targets(
         arm_moving_average * cur_targets[:, :NUM_ARM_DOFS]
         + (1.0 - arm_moving_average) * prev_targets[:, :NUM_ARM_DOFS]
     )
+
+    # Hand actuated joints: scale action to joint limits, then EMA
+    for i in range(NUM_ARM_DOFS, NUM_ACTUATED_DOFS):
+        joint_idx = POLICY_ACTION_TO_JOINT_INDEX[i]
+        cur_targets[:, joint_idx] = scale(
+            actions[:, i],
+            q_lower_limits[joint_idx],
+            q_upper_limits[joint_idx],
+        )
+        cur_targets[:, joint_idx] = (
+            hand_moving_average * cur_targets[:, joint_idx]
+            + (1.0 - hand_moving_average) * prev_targets[:, joint_idx]
+        )
+        cur_targets[:, joint_idx] = tensor_clamp(
+            cur_targets[:, joint_idx],
+            q_lower_limits[joint_idx],
+            q_upper_limits[joint_idx],
+        )
+
+    # Mimic joints: driven by master joint targets
+    for mimic_idx, (master_idx, multiplier) in MIMIC_MAP.items():
+        cur_targets[:, mimic_idx] = multiplier * cur_targets[:, master_idx]
+        cur_targets[:, mimic_idx] = tensor_clamp(
+            cur_targets[:, mimic_idx],
+            q_lower_limits[mimic_idx],
+            q_upper_limits[mimic_idx],
+        )
+
     return cur_targets
 
 
@@ -615,7 +675,9 @@ W = world, R = robot base, P = palm (left_wrist_yaw_link + offset),
 W != R because the robot base is offset and rotated from the world origin:
   T_W_R = eye(4) with translation (x=0, y=0.4, z=0.79) and rotation -90° around Z
 
-Robot: G1 left arm (7 DOF) + LinkerHand O6 left (11 DOF) = 18 DOF total
+Robot: G1 left arm (7 DOF) + LinkerHand O6 left (6 actuated + 5 mimic = 11 DOF) = 18 DOF total
+  Actuated by policy: 7 arm + 6 hand = NUM_ACTUATED_DOFS = 13
+  Mimic-driven: 5 DIP joints (lh_thumb_ip, lh_index_dip, lh_middle_dip, lh_ring_dip, lh_pinky_dip)
 
 Observation (N_OBS-dim):
   joint_pos (18), joint_vel (18), prev_action_targets (18),
@@ -624,7 +686,8 @@ Observation (N_OBS-dim):
   fingertip_pos_rel_palm (5x3=15), object_scales (3)
   Total = 18+18+18+3+4+4+12+12+15+3 = 107
 
-Action -> Joint Position Targets:
-  Hand (joints 7:18): scale action to joint limits, then EMA with hand_moving_average
-  Arm  (joints 0:7):  prev_targets + hand_dof_speed_scale * dt * action, then EMA with arm_moving_average
+Action (13-dim) -> Joint Position Targets (18-dim):
+  Arm  (actions 0:7 → joints 0:7):  prev_targets + hand_dof_speed_scale * dt * action, then EMA
+  Hand (actions 7:13 → joints [7,8,10,12,14,16]): scale action to joint limits, then EMA
+  Mimic (joints [9,11,13,15,17]): multiplier * master_joint_target, then clamp
 """

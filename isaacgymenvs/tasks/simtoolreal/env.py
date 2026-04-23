@@ -67,11 +67,15 @@ from isaacgymenvs.utils.observation_action_utils_g1 import (
     DES_LEFT_HAND_POS,
     FINGERTIP_LINKS,
     JOINT_NAMES_ISAACGYM,
+    MIMIC_MAP,
+    NUM_ACTUATED_DOFS,
     NUM_ARM_DOFS,
     NUM_FINGERTIPS,
     NUM_HAND_ARM_DOFS,
     NUM_HAND_DOFS,
+    NUM_MIMIC_DOFS,
     PALM_LINK,
+    POLICY_ACTION_TO_JOINT_INDEX,
     OBS_NAMES,
     compute_joint_pos_targets,
     compute_observation,
@@ -127,14 +131,17 @@ class SimToolReal(VecTask):
         self.privileged_actions = self.cfg["env"]["privilegedActions"]
         self.privileged_actions_torque = self.cfg["env"]["privilegedActionsTorque"]
 
-        # G1 left arm: 7 DOF + LinkerHand O6 left: 11 DOF = 18 DOF total
+        # G1 left arm: 7 DOF + LinkerHand O6 left: 6 actuated + 5 mimic = 18 DOF total
+        # Policy controls 7 arm + 6 hand = 13 DOF; 5 DIP joints are mimic-driven
         self.num_arm_dofs = NUM_ARM_DOFS
         self.num_hand_dofs = NUM_HAND_DOFS
+        self.num_mimic_dofs = NUM_MIMIC_DOFS
         self.num_fingertips = NUM_FINGERTIPS
         self.num_finger_dofs = None
         self.num_hand_arm_dofs = NUM_HAND_ARM_DOFS
+        self.num_actuated_dofs = NUM_ACTUATED_DOFS
 
-        self.num_robot_actions = self.num_hand_arm_dofs
+        self.num_robot_actions = self.num_actuated_dofs
         if self.privileged_actions:
             self.num_robot_actions += 3
 
@@ -453,7 +460,17 @@ class SimToolReal(VecTask):
             desired_arm_pos[3] += np.deg2rad(10)
 
         self.hand_arm_default_dof_pos[:NUM_ARM_DOFS] = desired_arm_pos
-        self.hand_arm_default_dof_pos[NUM_ARM_DOFS:] = desired_hand_pos
+        for i in range(NUM_ARM_DOFS, NUM_ACTUATED_DOFS):
+            joint_idx = POLICY_ACTION_TO_JOINT_INDEX[i]
+            self.hand_arm_default_dof_pos[joint_idx] = desired_hand_pos[
+                i - NUM_ARM_DOFS
+            ]
+
+        # Initialize mimic joint defaults from master joints
+        for mimic_idx, (master_idx, multiplier) in MIMIC_MAP.items():
+            self.hand_arm_default_dof_pos[mimic_idx] = (
+                multiplier * self.hand_arm_default_dof_pos[master_idx]
+            )
 
         self.arm_hand_dof_state = self.dof_state.view(self.num_envs, -1, 2)[
             :, : self.num_hand_arm_dofs
@@ -1131,7 +1148,7 @@ class SimToolReal(VecTask):
     def _object_start_pose(self, robot_pose, table_pose_dy, table_pose_dz):
         object_start_pose = gymapi.Transform()
         object_start_pose.p = gymapi.Vec3()
-        object_start_pose.p.x = robot_pose.p.x
+        object_start_pose.p.x = robot_pose.p.x + 0.1
 
         pose_dy, pose_dz = table_pose_dy, table_pose_dz + 0.25
 
@@ -1807,7 +1824,7 @@ class SimToolReal(VecTask):
         robot_pose = gymapi.Transform()
         robot_pose.p = gymapi.Vec3(
             *get_axis_params(0.0, self.up_axis_idx)
-        ) + gymapi.Vec3(0.0, 0.4, 0.79)
+        ) + gymapi.Vec3(0.0, 0.35, 0.79)
         robot_pose.r = gymapi.Quat(0, 0, -0.7071068, 0.7071068)
 
         object_assets, object_rb_count, object_shapes_count = (
@@ -1843,7 +1860,7 @@ class SimToolReal(VecTask):
         table_pose = gymapi.Transform()
         table_pose.p = gymapi.Vec3()
         table_pose.p.x = robot_pose.p.x
-        table_pose_dy, table_pose_dz = -0.4, self.cfg["env"]["tableResetZ"]
+        table_pose_dy, table_pose_dz = -0.35, self.cfg["env"]["tableResetZ"]
         table_pose.p.y = robot_pose.p.y + table_pose_dy
         table_pose.p.z = table_pose_dz
 
@@ -1899,6 +1916,19 @@ class SimToolReal(VecTask):
             f"Expected {NUM_HAND_ARM_DOFS} DOF but got {num_dof}. "
             f"Check that the URDF has exactly {NUM_HAND_ARM_DOFS} revolute/prismatic joints."
         )
+
+        # ====================
+        dof_names_asset = list(self.gym.get_asset_dof_names(robot_asset))
+        print(f"IsaacGym DOF names: {dof_names_asset}")
+        print(f"Configured JOINT_NAMES_ISAACGYM: {JOINT_NAMES_ISAACGYM}")
+        if dof_names_asset != JOINT_NAMES_ISAACGYM:
+            print(
+                f"[WARNING] IsaacGym DOF names differ from configured JOINT_NAMES_ISAACGYM:\n"
+                f"  Expected: {JOINT_NAMES_ISAACGYM}\n"
+                f"  Got:      {dof_names_asset}",
+                file=__import__("sys").stderr,
+            )
+        # ====================
 
         # Validate joint names match our expected order
         joint_names_asset = list(self.gym.get_asset_joint_names(robot_asset))
@@ -2003,7 +2033,9 @@ class SimToolReal(VecTask):
                 segmentation_id,
             )
             populate_dof_properties(
-                robot_dof_props, self.num_arm_dofs, self.num_hand_dofs
+                robot_dof_props,
+                self.num_arm_dofs,
+                self.num_hand_arm_dofs - self.num_arm_dofs,
             )
 
             self.gym.set_actor_dof_properties(env_ptr, robot_actor, robot_dof_props)
@@ -3621,6 +3653,15 @@ class SimToolReal(VecTask):
                 self.arm_hand_dof_upper_limits,
             )
 
+            # Enforce mimic constraints on reset positions
+            for mimic_idx, (master_idx, multiplier) in MIMIC_MAP.items():
+                robot_pos[:, mimic_idx] = multiplier * robot_pos[:, master_idx]
+                robot_pos[:, mimic_idx] = tensor_clamp(
+                    robot_pos[:, mimic_idx],
+                    self.arm_hand_dof_lower_limits[mimic_idx : mimic_idx + 1],
+                    self.arm_hand_dof_upper_limits[mimic_idx : mimic_idx + 1],
+                )
+
             self.arm_hand_dof_pos[env_ids, :] = robot_pos
             if self.VISUALIZE_PD_TARGET_AS_BLUE_ROBOT:
                 self.blue_robot_arm_hand_dof_pos[env_ids, :] = robot_pos.clone()
@@ -3796,22 +3837,34 @@ class SimToolReal(VecTask):
             + (1.0 - self.arm_moving_average) * self.prev_targets[:, :7]
         )
 
-        # hand
-        self.cur_targets[:, 7 : self.num_hand_arm_dofs] = scale(
-            actions[:, 7 : self.num_hand_arm_dofs],
-            self.arm_hand_dof_lower_limits[7 : self.num_hand_arm_dofs],
-            self.arm_hand_dof_upper_limits[7 : self.num_hand_arm_dofs],
-        )
-        self.cur_targets[:, 7 : self.num_hand_arm_dofs] = (
-            self.hand_moving_average * self.cur_targets[:, 7 : self.num_hand_arm_dofs]
-            + (1.0 - self.hand_moving_average)
-            * self.prev_targets[:, 7 : self.num_hand_arm_dofs]
-        )
-        self.cur_targets[:, 7 : self.num_hand_arm_dofs] = tensor_clamp(
-            self.cur_targets[:, 7 : self.num_hand_arm_dofs],
-            self.arm_hand_dof_lower_limits[7 : self.num_hand_arm_dofs],
-            self.arm_hand_dof_upper_limits[7 : self.num_hand_arm_dofs],
-        )
+        # hand actuated joints: actions[:, 7:13] → mapped to joint indices
+        for i in range(NUM_ARM_DOFS, NUM_ACTUATED_DOFS):
+            joint_idx = POLICY_ACTION_TO_JOINT_INDEX[i]
+            self.cur_targets[:, joint_idx] = scale(
+                actions[:, i],
+                self.arm_hand_dof_lower_limits[joint_idx],
+                self.arm_hand_dof_upper_limits[joint_idx],
+            )
+            self.cur_targets[:, joint_idx] = (
+                self.hand_moving_average * self.cur_targets[:, joint_idx]
+                + (1.0 - self.hand_moving_average) * self.prev_targets[:, joint_idx]
+            )
+            self.cur_targets[:, joint_idx] = tensor_clamp(
+                self.cur_targets[:, joint_idx],
+                self.arm_hand_dof_lower_limits[joint_idx],
+                self.arm_hand_dof_upper_limits[joint_idx],
+            )
+
+        # mimic joints: driven by master joint targets
+        for mimic_idx, (master_idx, multiplier) in MIMIC_MAP.items():
+            self.cur_targets[:, mimic_idx] = (
+                multiplier * self.cur_targets[:, master_idx]
+            )
+            self.cur_targets[:, mimic_idx] = tensor_clamp(
+                self.cur_targets[:, mimic_idx],
+                self.arm_hand_dof_lower_limits[mimic_idx],
+                self.arm_hand_dof_upper_limits[mimic_idx],
+            )
 
         # Default CHECK_WITH_COMPUTED_JOINT_POS_TARGETS = False
         # Set to True to check if the computed joint pos targets are correct

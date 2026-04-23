@@ -57,6 +57,7 @@ Z_OFFSET = TABLE_Z - ORIGIN_TABLE_Z
 from isaacgymenvs.utils.observation_action_utils_g1 import (
     DES_LEFT_ARM_POS,
     DES_LEFT_HAND_POS,
+    NUM_ACTUATED_DOFS,
     NUM_HAND_ARM_DOFS,
     N_OBS,
 )
@@ -170,7 +171,10 @@ def quat_xyzw_to_wxyz(q):
 def _sim_get_state(env, obs, joint_lower, joint_upper, n_act):
     """Extract visualisation state from the env."""
     obs_np = obs[0].cpu().numpy()
-    joint_pos = 0.5 * (obs_np[:n_act] + 1.0) * (joint_upper - joint_lower) + joint_lower
+    joint_pos = (
+        0.5 * (obs_np[:NUM_HAND_ARM_DOFS] + 1.0) * (joint_upper - joint_lower)
+        + joint_lower
+    )
     return (
         joint_pos,
         env.object_state[0, :7].cpu().numpy(),
@@ -262,7 +266,7 @@ def sim_worker(
     from deployment.rl_player import RlPlayer
     from deployment.isaac.isaac_env import create_env
 
-    n_act = NUM_HAND_ARM_DOFS
+    n_act = NUM_ACTUATED_DOFS
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     try:
@@ -324,7 +328,7 @@ def sim_worker(
                 # Initialization
                 "task.env.useFixedInitObjectPose": True,
                 "task.env.objectStartPose": traj_data["start_pose"],
-                "task.env.startArmHigher": False, # [cdx] for g1 not higher
+                "task.env.startArmHigher": False,  # [cdx] for g1 not higher
                 # Forces/torques (all zero for eval)
                 "task.env.forceScale": 0.0,
                 "task.env.torqueScale": 0.0,
@@ -341,8 +345,8 @@ def sim_worker(
             },
         )
 
-        joint_lower = env.arm_hand_dof_lower_limits[:n_act].cpu().numpy()
-        joint_upper = env.arm_hand_dof_upper_limits[:n_act].cpu().numpy()
+        joint_lower = env.arm_hand_dof_lower_limits[:NUM_HAND_ARM_DOFS].cpu().numpy()
+        joint_upper = env.arm_hand_dof_upper_limits[:NUM_HAND_ARM_DOFS].cpu().numpy()
 
         # Load policy
         env.set_env_state(torch.load(checkpoint_path)[0]["env_state"])
@@ -487,11 +491,11 @@ class InteractiveDemo:
             / "assets"
             / "urdf"
             / "g1_description"
-            / "g1_29dof_with_left_linkerhand_actuated.urdf"
+            / "g1_29dof_with_left_linkerhand_correct.urdf"
         )
         self.server.scene.add_frame(
             "/robot",
-            position=(0, 0.4, 0.79),
+            position=(0, 0.35, 0.79),
             wxyz=(0.7071068, 0, 0, -0.7071068),
             show_axes=False,
         )

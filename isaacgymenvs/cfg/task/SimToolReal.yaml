@@ -163,7 +163,7 @@ env:
   deltaRotationDegrees: 90.0 # rotation of the goal in degrees
   # 调整目标坐标范围
   targetVolumeMins: [-0.1, -0.1, 0.7]  # Either null/None or a 3-element list of [x_min, y_min, z_min]
-  targetVolumeMaxs: [0.4, 0.2, 0.95]  # Either null/None or a 3-element list of [x_max, y_max, z_max]
+  targetVolumeMaxs: [0.3, 0.2, 1.0]  # Either null/None or a 3-element list of [x_max, y_max, z_max]
 
   # Delays and noise
   useObsDelay: True
@@ -194,7 +194,7 @@ env:
   tableFriction: 0.5
 
   asset:
-    robot: "urdf/g1_description/g1_29dof_with_left_linkerhand.urdf"
+    robot: "urdf/g1_description/g1_29dof_with_left_linkerhand_correct.urdf"
 
     table: "urdf/table_narrow.urdf"
 
