@@ -4,6 +4,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Literal
 
+import math
 import numpy as np
 import yourdfpy
 from scipy.spatial.transform import Rotation as R
@@ -213,10 +214,10 @@ assert len(OBS_NAMES) == N_OBS, f"len(OBS_NAMES): {len(OBS_NAMES)}, expected: {N
 # =============== ROBOT CUSTOM CONFIG (POSE AND OFFSET) ===============
 T_W_R_np = np.eye(4, dtype=np.float32)
 T_W_R_np[:2, :2] = np.array([[0, 1], [-1, 0]])  # -90 degree rotation around z axis
-T_W_R_np[:3, 3] = np.array([0.0, 0.35, 0.79])
+T_W_R_np[:3, 3] = np.array([-0.18, 0.35, 0.79])
 
 DESIRED_ARM_POS_np = np.array(
-    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    [0.0, 0.0, 0.0, 0.0, math.pi/2, 0.0, 0.0],
     dtype=np.float32,
 )
 
