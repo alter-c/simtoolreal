@@ -51,7 +51,7 @@ if _SIDEBAR_IMG_PATH.exists():
 # ═══════════════════════════════════════════════════════════════════
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-TABLE_Z = 0.6
+TABLE_Z = 0.55
 ORIGIN_TABLE_Z = 0.38
 Z_OFFSET = TABLE_Z - ORIGIN_TABLE_Z
 

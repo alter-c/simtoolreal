@@ -38,10 +38,10 @@ def populate_dof_properties(hand_arm_dof_props, arm_dofs: int, hand_dofs: int) -
 
     import numpy as np
 
-    arm_efforts = [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
-    arm_stiffnesses = [75.0, 75.0, 75.0, 75.0, 75.0, 75.0, 75.0] # Kp
-    arm_dampings = [2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0]  # Kd
-    arm_armatures = [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01] 
+    arm_efforts = np.array([100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0])
+    arm_stiffnesses = np.array([75.0, 75.0, 75.0, 75.0, 75.0, 75.0, 75.0]) # Kp
+    arm_dampings = np.array([2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0]) # Kd
+    arm_armatures = np.array([0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01]) 
 
     assert (
         len(arm_efforts)
@@ -96,34 +96,34 @@ def populate_dof_properties(hand_arm_dof_props, arm_dofs: int, hand_dofs: int) -
     #   lh_ring_mcp_pitch, lh_ring_dip, 
     #   lh_pinky_mcp_pitch, lh_pinky_dip]
     # LinkerHand O6 left hand PD parameters
-    hand_stiffnesses = [
+    hand_stiffnesses = np.array([
         13.2, 6.95, 0.9,
         4.76, 0.9,
         4.76, 0.9,
         4.76, 0.9,
         4.76, 0.9,
-    ]
-    hand_dampings = [
+    ]) 
+    hand_dampings = np.array([
         0.287, 0.408, 0.042,
         0.208, 0.035,
         0.208, 0.035,
         0.208, 0.035,
         0.208, 0.035,
-    ]
-    hand_armatures = [
+    ]) 
+    hand_armatures = np.array([
         0.003, 0.003, 0.0006,
         0.002, 0.0004,
         0.002, 0.0004,
         0.002, 0.0004,
         0.002, 0.0004,
-    ]
-    hand_frictions = [
+    ])
+    hand_frictions = np.array([
         0.132, 0.132, 0.01276,
         0.075, 0.0038,
         0.075, 0.0038,
         0.075, 0.0038,
         0.075, 0.0038,
-    ]
+    ])
     assert (
         len(hand_stiffnesses)
         == len(hand_dampings)

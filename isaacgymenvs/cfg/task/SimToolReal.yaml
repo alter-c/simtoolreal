@@ -10,7 +10,7 @@ env:
   numEnvs: ${resolve_default:8192,${...num_envs}}
 
   envSpacing: 1.2
-  episodeLength: 600
+  episodeLength: 1200
   # enableCameraSensors: False  # Setting to True will significantly slow down the environment (about 50% FPS)
   enableCameraSensors: True  # Updated vec_task.py code to allow this to be True and still be fast, as long as enable_viewer_sync=False
                              # Thus, we can leave this on by default without sacrificing speed, just need to make sure that enable_viewer_sync=False
@@ -41,7 +41,7 @@ env:
   resetDofVelRandomInterval: 0.5
 
   # Table reset settings
-  tableResetZ: 0.6
+  tableResetZ: 0.55
   tableResetZRange: 0.01
   tableObjectZOffset: 0.25
 
@@ -161,8 +161,8 @@ env:
   targetVolumeRegionScale: 1.0 # scale the target volume region by this factor
   deltaGoalDistance: 0.1 # distance to the goal in meters
   deltaRotationDegrees: 90.0 # rotation of the goal in degrees
-  targetVolumeMins: [-0.3, -0.1, 0.7]  # Either null/None or a 3-element list of [x_min, y_min, z_min]
-  targetVolumeMaxs: [0.3, 0.2, 1.0]  # Either null/None or a 3-element list of [x_max, y_max, z_max]
+  targetVolumeMins: [-0.2, -0.1, 0.6]  # Either null/None or a 3-element list of [x_min, y_min, z_min]
+  targetVolumeMaxs: [0.2, 0.1, 0.8]  # Either null/None or a 3-element list of [x_max, y_max, z_max]
 
   # Delays and noise
   useObsDelay: True
