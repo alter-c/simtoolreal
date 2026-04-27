@@ -33,7 +33,7 @@ class LaunchTrainingArgs:
     """Object angular velocity penalty scale."""
 
     # === SAPG ===
-    num_envs: int = 12288
+    num_envs: int = 24576
     """Number of environments. Reduce this to 12288 if you run out of GPU memory."""
 
     num_blocks: int = 6
