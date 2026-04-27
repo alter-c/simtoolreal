@@ -98,7 +98,11 @@ def tensor_clamp(t, min_t, max_t):
     return np.maximum(np.minimum(t, max_t), min_t)
 
 def matrix_to_quaternion_xyzw_scipy(matrix: np.ndarray) -> np.ndarray:
-    return R.from_matrix(matrix).as_quat()
+    quat = R.from_matrix(matrix).as_quat()
+    # force quat.w < 0, same as issacgym
+    mask = quat[..., 3] > 0
+    quat[mask] *= -1
+    return quat
 
 
 assert len(JOINT_NAMES_ISAACGYM) == NUM_DOFS, (
@@ -140,7 +144,7 @@ Q_UPPER_LIMITS_np = np.array(
         1.614429558,
         1.3,
         0.58,
-        1.3282,
+        1.08,
         1.6,
         1.424,
         1.6,
@@ -257,7 +261,7 @@ def create_urdf_object(
     elif robot_name == "g1_29dof_left_linkerhand_adjusted":
         urdf_path = (
             asset_root
-            / "urdf/g1_sharpa_description/g1_29dof_left_linkerhand_adjusted.urdf"
+            / "urdf/unitree_linkerhand_description/g1_29dof_left_linkerhand_adjusted.urdf"
         )
     else:
         raise ValueError(f"Invalid robot name: {robot_name}")
@@ -343,7 +347,7 @@ def compute_observation(
     assert JOINT_NAMES_ISAACGYM == urdf.actuated_joint_names, (
         f"JOINT_NAMES_ISAACGYM: {JOINT_NAMES_ISAACGYM} != urdf.actuated_joint_names: {urdf.actuated_joint_names}"
     )
-    LINK_NAMES = PALM_LINK_NAME + FINGERTIP_LINK_NAMES
+    LINK_NAMES = [PALM_LINK_NAME] + FINGERTIP_LINK_NAMES
     fk_dict = compute_fk_dict(urdf=urdf, q=q, link_names=LINK_NAMES)
     t3 = time.time()
     palm_center_pos, palm_rot = _compute_palm_center_pos_and_rot(fk_dict=fk_dict)

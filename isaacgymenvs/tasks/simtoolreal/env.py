@@ -3225,7 +3225,7 @@ class SimToolReal(VecTask):
             print("=" * 100)
             print(f"num_errors: {num_errors}")
             print("=" * 100)
-            breakpoint()
+            # breakpoint()
 
     @property
     def turn_off_palm_vel_obs_scale(self) -> float:
@@ -3859,7 +3859,7 @@ class SimToolReal(VecTask):
             print("=" * 100)
             print(f"num_errors: {num_errors}")
             print("=" * 100)
-            breakpoint()
+            # breakpoint()
 
         if joint_pos_targets is not None:
             HACK_OVERWRITE = False
