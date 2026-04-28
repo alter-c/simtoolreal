@@ -8,28 +8,36 @@ Install [uv](https://docs.astral.sh/uv/getting-started/installation/):
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-## Main Environment
+Install [torch for jetson](https://forums.developer.nvidia.com/t/pytorch-for-jetson/72048):
+```bash
+wget "https://developer.download.nvidia.cn/compute/redist/jp/v512/pytorch/torch-2.1.0a0+41361538.nv23.06-cp38-cp38-linux_aarch64.whl"
+uv pip install torch-2.1.0a0+41361538.nv23.06-cp38-cp38-linux_aarch64.whl
+```
 
-We use Isaac Gym for policy learning in simulation, which requires Python 3.8.
+Install [torchvision](https://github.com/pytorch/vision):
+```bash
+uv pip install "torchvision @ git+https://github.com/pytorch/vision.git@v0.16.1"
+cd ../ # for test
+```
+
+Install system packages:
+```bash
+sudo apt-get install -y libxml2-dev libxslt1-dev zlib1g-dev
+```
+
+## Main Environment
 
 ```bash
 # Create a virtual environment with Python 3.8
 uv venv --python 3.8
 
-# Auto-set LD_LIBRARY_PATH on activate (needed for Isaac Gym to find libpython3.8)
-echo 'export LD_LIBRARY_PATH=$(python -c "import sysconfig; print(sysconfig.get_config_var(\"LIBDIR\"))"):$LD_LIBRARY_PATH' >> .venv/bin/activate
-
 source .venv/bin/activate
 
-# Install the project and all dependencies
-uv pip install -e "[.sim]"
+# set CYCLONEDDS_HOME for install unitree-sdk
+export CYCLONEDDS_HOME=/home/unitree/cyclonedds_ws/install/cyclonedds
 
-# Download and extract Isaac Gym Preview 4 to a directory outside of this repo
-wget https://developer.nvidia.com/isaac-gym-preview-4 -O IsaacGym_Preview_4_Package.tar.gz
-tar -xzf IsaacGym_Preview_4_Package.tar.gz
-cd isaacgym/python
-uv pip install -e .
-cd -
+# Install the project and all dependencies
+uv pip install -e "[.real]"
 
 # Install this repo's rl_games
 cd rl_games

@@ -30,8 +30,6 @@ dependencies = [
     "pyvirtualdisplay",
     "urdfpy==0.0.22",
     "pysdf==0.1.9",
-    "warp-lang==0.10.1",
-    "trimesh==3.23.5",
     "numpy==1.23.0",
     "scipy",
     "matplotlib",
@@ -47,7 +45,6 @@ dependencies = [
     "requests",
     "pyopenssl",
     "ninja",
-    "pytorch3d",
     "imageio[ffmpeg]",
     "yourdfpy",
     "viser==1.0.0",
@@ -59,8 +56,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-ros = [
+sim = [
+    "warp-lang==0.10.1",
+    "trimesh==3.23.5",
+    "pytorch3d",
+]
+real = [
     "rospkg",
+    "unitree_sdk2py @ git+https://github.com/unitreerobotics/unitree_sdk2_python.git",
+    "python-can",
 ]
 dev = [
     "ipykernel",
