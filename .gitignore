@@ -226,3 +226,6 @@ isaacgym/
 # opencode
 opencode/
 session-*.md
+
+# unitree sdk
+third_party

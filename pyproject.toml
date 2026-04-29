@@ -63,7 +63,6 @@ sim = [
 ]
 real = [
     "rospkg",
-    "unitree_sdk2py @ git+https://github.com/unitreerobotics/unitree_sdk2_python.git",
     "python-can",
 ]
 dev = [
