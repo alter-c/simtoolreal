@@ -33,11 +33,16 @@ uv venv --python 3.8
 
 source .venv/bin/activate
 
-# set CYCLONEDDS_HOME for install unitree-sdk
-export CYCLONEDDS_HOME=/home/unitree/cyclonedds_ws/install/cyclonedds
-
 # Install the project and all dependencies
 uv pip install -e "[.real]"
+
+# Install unitree_sdk2py
+export CYCLONEDDS_HOME=/home/unitree/cyclonedds_ws/install/cyclonedds
+mkdir third_party && cd third_party
+git clone https://github.com/unitreerobotics/unitree_sdk2_python.git
+cd unitree_sdk2_python
+uv pip install -e .
+cd -
 
 # Install this repo's rl_games
 cd rl_games
