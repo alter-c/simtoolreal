@@ -228,4 +228,6 @@ opencode/
 session-*.md
 
 # unitree sdk
-third_party
+third_party/
+
+recorded_robot_inputs/

@@ -85,7 +85,7 @@ HAMMER_NAME_TO_OBJECT = {
             get_repo_root_dir()
             / "assets/urdf/dextoolbench/hammer/claw_hammer/claw_hammer.urdf"
         ),
-        scale=rescale_by_factor((0.10, 0.0225, 0.015), factor=25),
+        scale=rescale_by_factor((0.1, 0.0225, 0.1), factor=25),
         need_vhacd=True,
     ),
 }

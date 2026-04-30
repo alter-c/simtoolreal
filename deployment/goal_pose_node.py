@@ -262,9 +262,9 @@ class GoalPoseNode:
 
 @dataclass
 class GoalPoseNodeArgs:
-    object_category: str = "hammer"
-    object_name: str = "claw_hammer"
-    task_name: str = "swing_down"
+    object_category: str = "hezi"
+    object_name: str = "hezi"
+    task_name: str = "yidong"
 
     success_threshold: float = 0.02
     """Success threshold in meters."""
@@ -295,17 +295,14 @@ def main():
         traj_data = json.load(f)
 
     # Account for robot to world frame
-    goal_poses_world_frame = traj_data["goals"]
-    goal_poses_robot_frame = [
-        [x, y - 0.8, z, qx, qy, qz, qw]
-        for x, y, z, qx, qy, qz, qw in goal_poses_world_frame
-    ]
+    goal_poses_robot_frame = traj_data["goals"]
+
 
     try:
         # Create and run the GoalPoseNode
         node = GoalPoseNode(
             goal_poses_robot_frame=np.array(goal_poses_robot_frame),
-            object_scales=np.array([0.141, 0.03025, 0.0271]) * 25,  # fixed size
+            object_scales=np.array([0.18, 0.041, 0.11]) * 25,  # fixed size
             success_threshold=args.success_threshold,
             success_steps=args.success_steps,
             force_open_loop=args.force_open_loop,

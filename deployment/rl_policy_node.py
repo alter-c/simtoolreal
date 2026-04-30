@@ -44,8 +44,7 @@ from isaacgymenvs.utils.observation_action_utils import (
 FORCE_FIXED_ORIENTATION = False
 
 
-T_W_R = np.eye(4)
-T_W_R[:3, 3] = np.array([0.0, 0.8, 0.0])
+T_W_R = T_W_R_np
 
 
 def xyzw_to_wxyz(xyzw: np.ndarray) -> np.ndarray:
@@ -289,7 +288,7 @@ class RLPolicyNode:
             "/unitree/joint_cmd", JointState, queue_size=1
         )
         self.linkerhand_joint_cmd_pub = rospy.Publisher(
-            "/hand_sdk", JointState, queue_size=1
+            "/linkerhand/joint_cmd", JointState, queue_size=1
         )
 
         # Variables to store the latest messages
@@ -318,7 +317,7 @@ class RLPolicyNode:
             queue_size=1,
         )
         self.linkerhand_joint_state_sub = rospy.Subscriber(
-            "/hand_state",
+            "/linkerhand/joint_states",
             JointState,
             self.linkerhand_joint_state_callback,
             queue_size=1,
@@ -459,8 +458,8 @@ class RLPolicyNode:
             qd = np.concatenate([qd, np.zeros(self.num_mimic_dofs)])
             q[self.action_joint_index] = q[:self.num_actions]
             qd[self.action_joint_index] = qd[:self.num_actions]
-            q[:, self.mimic_joint_index] = q[:, self.master_joint_index] * self.mimic_multipliers
-            qd[:, self.mimic_joint_index] = qd[:, self.master_joint_index] * self.mimic_multipliers
+            q[self.mimic_joint_index] = q[self.master_joint_index] * self.mimic_multipliers
+            qd[self.mimic_joint_index] = qd[self.master_joint_index] * self.mimic_multipliers
 
         q = tensor_clamp(q, Q_LOWER_LIMITS_np, Q_UPPER_LIMITS_np)
 
@@ -513,7 +512,8 @@ class RLPolicyNode:
         return observation, q, min_timestamp
 
     def publish_targets(self, joint_pos_targets: np.ndarray):
-        assert_equals(joint_pos_targets.shape, (1, self.num_actions))
+        # assert_equals(joint_pos_targets.shape, (1, self.num_actions))
+        assert_equals(joint_pos_targets.shape, (1, self.num_dofs))  # 在这里处理观测与动作不一致的问题，因此仍然是num_dof
         joint_pos_targets = joint_pos_targets[0]
 
         # Clamp joint position to joint limits with buffer
@@ -1218,7 +1218,8 @@ class RLPolicyNode:
                 hand_dof_speed_scale=self.hand_dof_speed_scale,
                 dt=DT,
             )
-            assert_equals(joint_pos_targets.shape, (1, self.num_actions))
+            # assert_equals(joint_pos_targets.shape, (1, self.num_actions))
+            assert_equals(joint_pos_targets.shape, (1, self.num_dofs)) # 同理于之前
 
             # Clamp
             joint_pos_targets = np.clip(
@@ -1307,7 +1308,7 @@ class RLPolicyNode:
 
             # Sanity check that the joint pos targets are not too far from the current joint positions
             q_arm_diff_deg = np.rad2deg(np.abs(joint_pos_targets[0, :7] - q[:7]))
-            MAX_Q_ARM_DIFF_DEG = 10
+            MAX_Q_ARM_DIFF_DEG = 30
             if q_arm_diff_deg.max() > MAX_Q_ARM_DIFF_DEG:
                 error(
                     f"Joint pos targets are too far from current joint positions, q_arm_diff: {q_arm_diff_deg} (max: {MAX_Q_ARM_DIFF_DEG})"

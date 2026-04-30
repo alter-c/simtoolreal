@@ -405,6 +405,7 @@ def compute_observation(
         "fingertip_pos_rel_palm": fingertip_rel_pos.reshape(N, -1),
         "object_scales": object_scales,
     }
+    print(obs_dict)
     t12 = time.time()
     for k, v in obs_dict.items():
         assert v.ndim == 2, f"v.ndim: {v.ndim}, expected: 2 for key: {k}: {v.shape}"
