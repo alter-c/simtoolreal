@@ -30,15 +30,7 @@ from isaacgymenvs.utils.observation_action_utils import (
     compute_joint_pos_targets,
     compute_observation,
     create_urdf_object,
-    T_W_R_np,
-    N_OBS,
-    DOF_CONFIG,
-    NUM_DOFS,
-    NUM_ACTUATED_DOFS,
-    ACTION_JOINT_INDEX,
-    MIMIC_JOINT_MAP,
-    JOINT_NAMES_ISAACGYM,
-    tensor_clamp
+    T_W_R_np
 )
 
 FORCE_FIXED_ORIENTATION = False
@@ -244,21 +236,6 @@ class RLPolicyNode:
 
         assert_equals(object_scales.shape, (3,)) # 预先定义物体形状
 
-        # =============== ROBOT CUSTOM CONFIG ===============
-        self.num_arm_dofs = DOF_CONFIG["arm"]
-        self.num_hand_dofs = DOF_CONFIG["hand"]
-        self.num_mimic_dofs = DOF_CONFIG["mimic"]
-        self.num_dofs = NUM_DOFS
-        self.has_mimic = self.num_mimic_dofs > 0
-        self.num_actions = NUM_ACTUATED_DOFS
-        self.robot_pose = T_W_R_np
-        if self.has_mimic:
-            self.action_joint_index = ACTION_JOINT_INDEX
-            self.mimic_joint_index = list(MIMIC_JOINT_MAP.keys())
-            self.master_joint_index = [val[0] for val in MIMIC_JOINT_MAP.values()]
-            self.mimic_multipliers = np.array([val[1] for val in MIMIC_JOINT_MAP.values()])
-        # =============== ROBOT CUSTOM CONFIG ===============
-
         # Initialize the ROS node
         rospy.init_node("rl_policy_node")
 
@@ -284,19 +261,18 @@ class RLPolicyNode:
             self.goal_object_pose_history: list[np.ndarray] = []
 
         # Publisher for iiwa and sharpa joint commands
-        # TODO 消息类型
-        self.unitree_joint_cmd_pub = rospy.Publisher(
-            "/unitree/joint_cmd", JointState, queue_size=1
+        self.iiwa_joint_cmd_pub = rospy.Publisher(
+            "/iiwa/joint_cmd", JointState, queue_size=1
         )
-        self.linkerhand_joint_cmd_pub = rospy.Publisher(
-            "/hand_sdk", JointState, queue_size=1
+        self.sharpa_joint_cmd_pub = rospy.Publisher(
+            "/sharpa/joint_cmd", JointState, queue_size=1
         )
 
         # Variables to store the latest messages
         self.object_pose_msg = None
         self.goal_object_pose_msg = None
-        self.unitree_joint_state_msg = None
-        self.linkerhand_joint_state_msg = None
+        self.iiwa_joint_state_msg = None
+        self.sharpa_joint_state_msg = None
 
         # Subscribers
         self.object_pose_sub = rospy.Subscriber(
@@ -311,24 +287,25 @@ class RLPolicyNode:
             self.goal_object_pose_callback,
             queue_size=1,
         )
-        self.unitree_joint_state_sub = rospy.Subscriber(
-            "/unitree/joint_states",
+        self.iiwa_joint_state_sub = rospy.Subscriber(
+            "/iiwa/joint_states",
             JointState,
-            self.unitree_joint_state_callback,
+            self.iiwa_joint_state_callback,
             queue_size=1,
         )
-        self.linkerhand_joint_state_sub = rospy.Subscriber(
-            "/hand_state",
+        self.sharpa_joint_state_sub = rospy.Subscriber(
+            "/sharpa/joint_states",
             JointState,
-            self.linkerhand_joint_state_callback,
+            self.sharpa_joint_state_callback,
             queue_size=1,
         )
 
         # RL Player setup
         # Faster with CPU
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        # self.device = "cpu"
-        self.num_observations = N_OBS  # Update this number based on actual dimensions
+        # self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = "cpu"
+        self.num_observations = 140  # Update this number based on actual dimensions
+        self.num_actions = 29
 
         assert self.config_path.exists(), (
             f"config_path: {self.config_path} does not exist"
@@ -351,14 +328,13 @@ class RLPolicyNode:
         self.control_dt = 1.0 / 60
 
         # Set up chain
-        robot_name = "g1_29dof_left_linkerhand_adjusted"
+        robot_name = "iiwa14_left_sharpa_adjusted_restricted"
         self.urdf_object = create_urdf_object(robot_name=robot_name)
 
         # State: prev_targets
         self.prev_targets = None
         self._warmup_completed = False
 
-        # TODO 不采用预定义的关节轨迹
         if self.overwrite_targets_filepath is not None:
             info(f"Overwriting targets from file: {self.overwrite_targets_filepath}")
             from recorded_data import RecordedData
@@ -369,10 +345,9 @@ class RLPolicyNode:
             self.q_targets_from_file = data.robot_joint_pos_targets_array
             T, D = self.q_targets_from_file.shape
             print(f"T: {T}, D: {D}")
-            assert D == NUM_DOFS, f"D: {D}, expected: {NUM_DOFS}"
+            assert D == 29, f"D: {D}, expected: 29"
             self.current_step = 0
 
-        # TODO 不采用离线轨迹数据逆解
         if self.use_relative_object_pose_once_lifted:
             # ##############################################################################
             # Signal handling to save relative object pose once lifted
@@ -394,48 +369,48 @@ class RLPolicyNode:
     def goal_object_pose_callback(self, msg: Pose):
         self.goal_object_pose_msg = msg
 
-    def unitree_joint_state_callback(self, msg: JointState):
-        self.unitree_joint_state_msg = msg
+    def iiwa_joint_state_callback(self, msg: JointState):
+        self.iiwa_joint_state_msg = msg
 
-    def linkerhand_joint_state_callback(self, msg: JointState):
-        self.linkerhand_joint_state_msg = msg
+    def sharpa_joint_state_callback(self, msg: JointState):
+        self.sharpa_joint_state_msg = msg
 
     def create_observation(
         self,
     ) -> Tuple[Optional[torch.Tensor], Optional[np.ndarray], Optional[rospy.Time]]:
         # Ensure all messages are received before processing
         if (
-            self.unitree_joint_state_msg is None
-            or self.linkerhand_joint_state_msg is None
+            self.iiwa_joint_state_msg is None
+            or self.sharpa_joint_state_msg is None
             or self.object_pose_msg is None
             or self.goal_object_pose_msg is None
         ):
             warn_every(
-                f"Waiting for all messages to be received... iiwa_joint_state_msg: {var_to_is_none_str(self.unitree_joint_state_msg)}, sharpa_joint_state_msg: {var_to_is_none_str(self.linkerhand_joint_state_msg)}, object_pose_msg: {var_to_is_none_str(self.object_pose_msg)}, goal_object_pose_msg: {var_to_is_none_str(self.goal_object_pose_msg)}",
+                f"Waiting for all messages to be received... iiwa_joint_state_msg: {var_to_is_none_str(self.iiwa_joint_state_msg)}, sharpa_joint_state_msg: {var_to_is_none_str(self.sharpa_joint_state_msg)}, object_pose_msg: {var_to_is_none_str(self.object_pose_msg)}, goal_object_pose_msg: {var_to_is_none_str(self.goal_object_pose_msg)}",
                 n_seconds=1.0,
             )
             return None, None, None
 
-        unitree_joint_state_msg = copy.copy(self.unitree_joint_state_msg)
-        linkerhand_joint_state_msg = copy.copy(self.linkerhand_joint_state_msg)
+        iiwa_joint_state_msg = copy.copy(self.iiwa_joint_state_msg)
+        sharpa_joint_state_msg = copy.copy(self.sharpa_joint_state_msg)
         object_pose_msg = copy.copy(self.object_pose_msg)
         goal_object_pose_msg = copy.copy(self.goal_object_pose_msg)
 
         timestamp_object_pose = object_pose_msg.header.stamp
-        timestamp_unitree_joint_state = unitree_joint_state_msg.header.stamp
-        timestamp_linkerhand_joint_state = linkerhand_joint_state_msg.header.stamp
+        timestamp_iiwa_joint_state = iiwa_joint_state_msg.header.stamp
+        timestamp_sharpa_joint_state = sharpa_joint_state_msg.header.stamp
         min_timestamp = min(
             timestamp_object_pose,
-            timestamp_unitree_joint_state,
-            timestamp_linkerhand_joint_state,
+            timestamp_iiwa_joint_state,
+            timestamp_sharpa_joint_state,
         )
 
         # Concatenate the data from joint states and object pose
-        unitree_position = np.array(unitree_joint_state_msg.position)
-        unitree_velocity = np.array(unitree_joint_state_msg.velocity)
+        iiwa_position = np.array(iiwa_joint_state_msg.position)
+        iiwa_velocity = np.array(iiwa_joint_state_msg.velocity)
 
-        linkerhand_position = np.array(linkerhand_joint_state_msg.position)
-        linkerhand_velocity = np.array(linkerhand_joint_state_msg.velocity)
+        sharpa_position = np.array(sharpa_joint_state_msg.position)
+        sharpa_velocity = np.array(sharpa_joint_state_msg.velocity)
 
         T_R_O = pose_msg_to_T(object_pose_msg.pose)
         T_R_G = pose_msg_to_T(goal_object_pose_msg)
@@ -451,18 +426,8 @@ class RLPolicyNode:
             [goal_object_pos_W, goal_object_quat_xyzw_W]
         )
 
-        q = np.concatenate([unitree_position, linkerhand_position])
-        qd = np.concatenate([unitree_velocity, linkerhand_velocity])
-        # for real robot, there is no mimic joint state
-        if self.has_mimic:
-            q = np.concatenate([q, np.zeros(self.num_mimic_dofs)])
-            qd = np.concatenate([qd, np.zeros(self.num_mimic_dofs)])
-            q[self.action_joint_index] = q[:self.num_actions]
-            qd[self.action_joint_index] = qd[:self.num_actions]
-            q[:, self.mimic_joint_index] = q[:, self.master_joint_index] * self.mimic_multipliers
-            qd[:, self.mimic_joint_index] = qd[:, self.master_joint_index] * self.mimic_multipliers
-
-        q = tensor_clamp(q, Q_LOWER_LIMITS_np, Q_UPPER_LIMITS_np)
+        q = np.concatenate([iiwa_position, sharpa_position])
+        qd = np.concatenate([iiwa_velocity, sharpa_velocity])
 
         prev_action_targets = self.prev_targets if self.prev_targets is not None else q
         with torch.no_grad():
@@ -544,37 +509,49 @@ class RLPolicyNode:
                 joint_pos_targets[:J_arm], arm_lower_limits, arm_upper_limits
             )
 
-        unitree_msg = JointState()
-        unitree_msg.header.stamp = rospy.Time.now()
-        unitree_msg.header.frame_id = ""
-        unitree_msg.name = [
-            "unitree_joint_1",
-            "unitree_joint_2",
-            "unitree_joint_3",
-            "unitree_joint_4",
-            "unitree_joint_5",
-            "unitree_joint_6",
-            "unitree_joint_7",
+        iiwa_msg = JointState()
+        iiwa_msg.header.stamp = rospy.Time.now()
+        iiwa_msg.header.frame_id = ""
+        iiwa_msg.name = [
+            "iiwa_joint_1",
+            "iiwa_joint_2",
+            "iiwa_joint_3",
+            "iiwa_joint_4",
+            "iiwa_joint_5",
+            "iiwa_joint_6",
+            "iiwa_joint_7",
         ]
-        unitree_msg.position = joint_pos_targets[:self.num_arm_dofs].tolist()
-        self.unitree_joint_cmd_pub.publish(unitree_msg)
-        linkerhand_msg = JointState()
-        linkerhand_msg.header.stamp = rospy.Time.now()
-        linkerhand_msg.header.frame_id = ""
-        linkerhand_msg.name = [
-            "linkerhand_1",
-            "linkerhand_2",
-            "linkerhand_3",
-            "linkerhand_4",
-            "linkerhand_5",
-            "linkerhand_6",
+        iiwa_msg.position = joint_pos_targets[:7].tolist()
+        self.iiwa_joint_cmd_pub.publish(iiwa_msg)
+        sharpa_msg = JointState()
+        sharpa_msg.header.stamp = rospy.Time.now()
+        sharpa_msg.header.frame_id = ""
+        sharpa_msg.name = [
+            "joint_0.0",
+            "joint_1.0",
+            "joint_2.0",
+            "joint_3.0",
+            "joint_4.0",
+            "joint_5.0",
+            "joint_6.0",
+            "joint_7.0",
+            "joint_8.0",
+            "joint_9.0",
+            "joint_10.0",
+            "joint_11.0",
+            "joint_12.0",
+            "joint_13.0",
+            "joint_14.0",
+            "joint_15.0",
+            "joint_16.0",
+            "joint_17.0",
+            "joint_18.0",
+            "joint_19.0",
+            "joint_20.0",
+            "joint_21.0",
         ]
-        if self.has_mimic:
-            hand_action_joint_index = self.action_joint_index[self.num_arm_dofs:]
-            linkerhand_msg.position = joint_pos_targets[hand_action_joint_index].tolist()
-        else:
-            linkerhand_msg.position = joint_pos_targets[self.num_arm_dofs:].tolist()
-        self.linkerhand_joint_cmd_pub.publish(linkerhand_msg)
+        sharpa_msg.position = joint_pos_targets[7:].tolist()
+        self.sharpa_joint_cmd_pub.publish(sharpa_msg)
 
     def _initialize_relative_object_pose_logic(
         self,
@@ -582,7 +559,6 @@ class RLPolicyNode:
         q_target: np.ndarray,
         T_R_O_lifted: np.ndarray,
     ):
-        # TODO 准备采用VLM预测下一个点的轨迹，而不是根据离线轨迹运动，因此先不考虑该抬起后的轨迹逻辑（未改动）
         assert_equals(q.shape, (29,))
         assert_equals(q_target.shape, (29,))
         assert_equals(T_R_O_lifted.shape, (4, 4))
@@ -872,7 +848,6 @@ class RLPolicyNode:
         T_W_Ps_using_lifted_object_pose: np.ndarray,
         T_W_O_trajectory: np.ndarray,
     ) -> None:
-        # TODO 同理于 _initialize_relative_object_pose_logic
         TRAJECTORY_LENGTH = q_targets_using_lifted_object_pose.shape[0]
         assert q_targets_using_lifted_object_pose.shape == (TRAJECTORY_LENGTH, 29), (
             f"q_targets_using_lifted_object_pose.shape: {q_targets_using_lifted_object_pose.shape}, expected: (TRAJECTORY_LENGTH, 29)"
@@ -1145,9 +1120,8 @@ class RLPolicyNode:
             # normalized_action = torch.zeros(1, self.num_actions, device=self.device)
             assert_equals(normalized_action.shape, (1, self.num_actions))
 
-            # TODO 移动平均，需要根据config设置
-            DUMMY_HAND_MOVING_AVERAGE = 0.5
-            DUMMY_ARM_MOVING_AVERAGE = 0.5
+            DUMMY_HAND_MOVING_AVERAGE = 0.1
+            DUMMY_ARM_MOVING_AVERAGE = 0.1
             DUMMY_HAND_DOF_SPEED_SCALE = 2.5
             DUMMY_DT = 1 / 60
             _ = compute_joint_pos_targets(
@@ -1227,7 +1201,6 @@ class RLPolicyNode:
                 Q_UPPER_LIMITS_np,
             )
 
-            # TODO 采用VLM预测，再用policy预测关节，不用预定义关节轨迹文件（未改动）
             if self.overwrite_targets_filepath is not None:
                 if self.current_step >= self.q_targets_from_file.shape[0]:
                     self.current_step = self.q_targets_from_file.shape[0] - 1
@@ -1238,7 +1211,6 @@ class RLPolicyNode:
                 joint_pos_targets = self.q_targets_from_file[self.current_step][None]
                 self.current_step += 1
 
-            # TODO 准备采用VLM预测下一个点的轨迹，而不是根据离线轨迹运动，因此先不考虑该抬起后的轨迹逻辑（未改动）
             if self.use_relative_object_pose_once_lifted:
                 # Lifted object threshold
                 if self.automatically_detect_object_lifted:
@@ -1395,12 +1367,12 @@ class RLPolicyNode:
 
         T = len(self.time_history)
         robot_root_states_array = np.zeros((T, 13))
-        robot_root_states_array[:, :3] = self.robot_pose[:3, 3]
-        robot_root_states_array[:, 3:7] = R.from_matrix(self.robot_pose[:3, :3]).as_quat()
+        robot_root_states_array[:, 1] = 0.8
+        robot_root_states_array[:, 6] = 1.0  # quaternion xyzw has w=1
         object_root_states_array = np.zeros((T, 13))
         object_root_states_array[:, :7] = np.array(self.object_pose_history)
-        # table_root_states_array = np.zeros((T, 13))
-        # table_root_states_array[:, :3] = np.array([0.0, 0.0, 0.38])[None]
+        table_root_states_array = np.zeros((T, 13))
+        table_root_states_array[:, :3] = np.array([0.0, 0.0, 0.38])[None]
         goal_root_states_array = np.zeros((T, 13))
         goal_root_states_array[:, :7] = np.array(self.goal_object_pose_history)
 
@@ -1410,14 +1382,14 @@ class RLPolicyNode:
         robot_joint_pos_targets = np.array(self.q_target_history)
         time_array = np.array(self.time_history)
 
-        assert robot_joint_positions.shape == (T, self.num_dofs), (
-            f"robot_joint_positions.shape: {robot_joint_positions.shape}, expected: (T, {self.num_dofs})"
+        assert robot_joint_positions.shape == (T, 29), (
+            f"robot_joint_positions.shape: {robot_joint_positions.shape}, expected: (T, 29)"
         )
-        assert robot_joint_velocities.shape == (T, self.num_dofs), (
-            f"robot_joint_velocities.shape: {robot_joint_velocities.shape}, expected: (T, {self.num_dofs})"
+        assert robot_joint_velocities.shape == (T, 29), (
+            f"robot_joint_velocities.shape: {robot_joint_velocities.shape}, expected: (T, 29)"
         )
-        assert robot_joint_pos_targets.shape == (T, self.num_dofs), (
-            f"robot_joint_pos_targets.shape: {robot_joint_pos_targets.shape}, expected: (T, {self.num_dofs})"
+        assert robot_joint_pos_targets.shape == (T, 29), (
+            f"robot_joint_pos_targets.shape: {robot_joint_pos_targets.shape}, expected: (T, 29)"
         )
         assert object_root_states_array.shape == (T, 13), (
             f"object_root_states_array.shape: {object_root_states_array.shape}, expected: (T, 13)"
@@ -1426,7 +1398,37 @@ class RLPolicyNode:
             f"time_array.shape: {time_array.shape}, expected: (T,)"
         )
 
-        JOINT_NAMES = JOINT_NAMES_ISAACGYM
+        JOINT_NAMES = [
+            "iiwa14_joint_1",
+            "iiwa14_joint_2",
+            "iiwa14_joint_3",
+            "iiwa14_joint_4",
+            "iiwa14_joint_5",
+            "iiwa14_joint_6",
+            "iiwa14_joint_7",
+            "left_1_thumb_CMC_FE",
+            "left_thumb_CMC_AA",
+            "left_thumb_MCP_FE",
+            "left_thumb_MCP_AA",
+            "left_thumb_IP",
+            "left_2_index_MCP_FE",
+            "left_index_MCP_AA",
+            "left_index_PIP",
+            "left_index_DIP",
+            "left_3_middle_MCP_FE",
+            "left_middle_MCP_AA",
+            "left_middle_PIP",
+            "left_middle_DIP",
+            "left_4_ring_MCP_FE",
+            "left_ring_MCP_AA",
+            "left_ring_PIP",
+            "left_ring_DIP",
+            "left_5_pinky_CMC",
+            "left_pinky_MCP_FE",
+            "left_pinky_MCP_AA",
+            "left_pinky_PIP",
+            "left_pinky_DIP",
+        ]
 
         from recorded_data import RecordedData
 
@@ -1470,7 +1472,7 @@ def main():
             hand_dof_speed_scale=1.5,
             object_scales=np.array(NAME_TO_OBJECT[args.object_name].scale),
             save_foldername=f"{datetime.datetime.now().strftime('%Y-%m-%d')}_testing",
-            use_relative_object_pose_once_lifted=False,
+            use_relative_object_pose_once_lifted=True,
             object_name=args.object_name,
             automatically_detect_object_lifted=False,
         )

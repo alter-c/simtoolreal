@@ -498,31 +498,48 @@ def compute_joint_pos_targets(
     # hand
     actuated_dof = NUM_ACTUATED_DOFS
     total_dof = NUM_DOFS
-    # here just compute by iterating for easy understanding
-    # actuated joints
-    for i in range(arm_dof, actuated_dof):
-        joint_idx = ACTION_JOINT_INDEX[i]
-        cur_targets[:, joint_idx] = scale(
-            actions[:, i],
-            q_lower_limits[joint_idx],
-            q_upper_limits[joint_idx],
+    # compute in parallel to accelerate
+    if DOF_CONFIG["mimic"] > 0:
+        hand_joint_index = ACTION_JOINT_INDEX[arm_dof:]
+        mimic_joint_index = list(MIMIC_JOINT_MAP.keys())
+        master_joint_index = [val[0] for val in MIMIC_JOINT_MAP.values()]
+        mimic_multipliers = np.array([val[1] for val in MIMIC_JOINT_MAP.values()])
+        # actuated joints
+        cur_targets[:, hand_joint_index] = scale(
+            actions[:, arm_dof: actuated_dof],
+            q_lower_limits[hand_joint_index],
+            q_upper_limits[hand_joint_index],
         )
-        cur_targets[:, joint_idx] = (
-            hand_moving_average * cur_targets[:, joint_idx]
-            + (1.0 - hand_moving_average) * prev_targets[:, joint_idx]
+        cur_targets[:, hand_joint_index] = (
+            hand_moving_average * cur_targets[:, hand_joint_index]
+            + (1.0 - hand_moving_average) * prev_targets[:, hand_joint_index]
         )
-        cur_targets[:, joint_idx] = tensor_clamp(
-            cur_targets[:, joint_idx],
-            q_lower_limits[joint_idx],
-            q_upper_limits[joint_idx],
+        cur_targets[:, hand_joint_index] = tensor_clamp(
+            cur_targets[:, hand_joint_index],
+            q_lower_limits[hand_joint_index],
+            q_upper_limits[hand_joint_index],
         )
-    # mimic joints
-    for mimic_idx, (master_idx, multiplier) in MIMIC_JOINT_MAP.items():
-        cur_targets[:, mimic_idx] = cur_targets[:, master_idx] * multiplier
-        cur_targets[:, mimic_idx] = tensor_clamp(
-            cur_targets[:, mimic_idx],
-            q_lower_limits[mimic_idx],
-            q_upper_limits[mimic_idx],
+        # mimic joints
+        cur_targets[:, mimic_joint_index] = cur_targets[:, master_joint_index] * mimic_multipliers
+        cur_targets[:, mimic_joint_index] = tensor_clamp(
+            cur_targets[:, mimic_joint_index],
+            q_lower_limits[mimic_joint_index],
+            q_upper_limits[mimic_joint_index],
+        )
+    else:
+        cur_targets[:, arm_dof:total_dof] = scale(
+            actions[:, arm_dof:total_dof],
+            q_lower_limits[arm_dof:total_dof],
+            q_upper_limits[arm_dof:total_dof],
+        )
+        cur_targets[:, arm_dof:total_dof] = (
+            hand_moving_average * cur_targets[:, arm_dof:total_dof]
+            + (1.0 - hand_moving_average) * prev_targets[:, arm_dof:total_dof]
+        )
+        cur_targets[:, arm_dof:total_dof] = tensor_clamp(
+            cur_targets[:, arm_dof:total_dof],
+            q_lower_limits[arm_dof:total_dof],
+            q_upper_limits[arm_dof:total_dof],
         )
 
     return cur_targets
