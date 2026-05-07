@@ -27,6 +27,9 @@ DEXTOOLBENCH_DATA_STRUCTURE: Dict[str, Dict[str, List[str]]] = {
         "long_screwdriver": ["spin_vertical", "spin_horizontal"],
         "short_screwdriver": ["spin_vertical", "spin_horizontal"],
     },
+    "luosidao": {
+        "luosidao_x_forward": ["test_world", "test_2_world"],
+    }
 }
 
 ALL_OBJECT_CATEGORIES = sorted(DEXTOOLBENCH_DATA_STRUCTURE.keys())

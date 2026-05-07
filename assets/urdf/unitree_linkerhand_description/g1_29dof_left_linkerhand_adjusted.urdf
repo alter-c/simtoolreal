@@ -1551,7 +1551,7 @@
   <joint name="left_linkerhand_base_joint" type="fixed">
     <parent link="left_wrist_yaw_link" />
     <child link="lh_hand_base_link" />
-    <origin xyz="0.0415 0 0" rpy="-1.5707963267 0 -1.5707963267" />
+    <origin xyz="0.0515 0 0" rpy="-1.5707963267 0 -1.5707963267" />
   </joint>
   <joint name="right_linkerhand_base_joint" type="fixed">
     <parent link="right_wrist_yaw_link" />
