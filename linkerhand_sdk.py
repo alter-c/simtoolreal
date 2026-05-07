@@ -195,6 +195,7 @@ if __name__ == '__main__':
             pose = [abs(np.sin(2 * np.pi * i / 1000))] * 6
             ctrl.set_joints("left", pose)
             i += 1
+            print(ctrl.get_state())
             time.sleep(0.01)
     except KeyboardInterrupt:
         ctrl.release_hand("left")

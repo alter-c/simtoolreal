@@ -3,6 +3,7 @@
 import copy
 import datetime
 import time
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Optional, Tuple
@@ -436,15 +437,16 @@ class RLPolicyNode:
         linkerhand_position = np.array(linkerhand_joint_state_msg.position)
         linkerhand_velocity = np.array(linkerhand_joint_state_msg.velocity)
 
-        T_R_O = pose_msg_to_T(object_pose_msg.pose)
+        if object_pose_msg.pose.position.x == math.nan:
+            object_pose_W = np.array([np.nan]*7)
+        else:
+            T_R_O = pose_msg_to_T(object_pose_msg.pose)
+            T_W_O = T_W_R @ T_R_O
+            object_position_W, object_quat_xyzw_W = T_to_pos_quat_xyzw(T_W_O)
+            object_pose_W = np.concatenate([object_position_W, object_quat_xyzw_W])
+
         T_R_G = pose_msg_to_T(goal_object_pose_msg)
-
-        T_W_O = T_W_R @ T_R_O
         T_W_G = T_W_R @ T_R_G
-
-        object_position_W, object_quat_xyzw_W = T_to_pos_quat_xyzw(T_W_O)
-        object_pose_W = np.concatenate([object_position_W, object_quat_xyzw_W])
-
         goal_object_pos_W, goal_object_quat_xyzw_W = T_to_pos_quat_xyzw(T_W_G)
         goal_object_pose_W = np.concatenate(
             [goal_object_pos_W, goal_object_quat_xyzw_W]
@@ -1124,7 +1126,7 @@ class RLPolicyNode:
         info("=" * 100)
         # THIS IS NOT THE REAL LOOP, DON'T CARE ABOUT THESE NUMBERs
         num_steps = 0
-        NUM_WARMUP_STEPS = 100
+        NUM_WARMUP_STEPS = 10
         while not rospy.is_shutdown():
             num_steps += 1
             info(f"Warmup step {num_steps} of {NUM_WARMUP_STEPS}")
@@ -1450,7 +1452,7 @@ class RLPolicyNodeArgs:
     policy_path: Path = Path("pretrained_policy")
     """Path to the policy directory."""
 
-    object_name: str = "claw_hammer"
+    object_name: str = "long_screwdriver"
     """The name of the object whose grasp bounding box will be used as input to the policy."""
 
 

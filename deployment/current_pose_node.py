@@ -160,6 +160,7 @@ def publish_payload(
 
         ros_msg = pose_stamped_from_dict(msg_dict)
         get_publisher(topic, queue_size).publish(ros_msg)
+        print(f"当前坐标: {(ros_msg.pose.position.x, ros_msg.pose.position.y, ros_msg.pose.position.z)}")
         published_messages.append(pose_stamped_to_dict(topic, ros_msg))
 
     if not published_messages:

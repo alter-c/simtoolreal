@@ -302,7 +302,7 @@ def main():
         # Create and run the GoalPoseNode
         node = GoalPoseNode(
             goal_poses_robot_frame=np.array(goal_poses_robot_frame),
-            object_scales=np.array([0.18, 0.041, 0.11]) * 25,  # fixed size
+            object_scales=np.array([0.2, 0.03, 0.03]) * 25,  # fixed size
             success_threshold=args.success_threshold,
             success_steps=args.success_steps,
             force_open_loop=args.force_open_loop,

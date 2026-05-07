@@ -108,7 +108,7 @@ if __name__ == '__main__':
 
     custom = Custom()
     hand_control = O6_DirectJointController(left_can_port="can1", right_can_port=None, fps=50.0)
-    ros_bridge = ArmROSBridge(custom, hand_control, publish_hz=50.0)
+    ros_bridge = ArmROSBridge(custom, hand_control, publish_hz=30.0)
     def shutdown_bridge():
         ros_bridge.release()
         print("[Bridge] Safely stopped.")

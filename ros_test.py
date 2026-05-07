@@ -64,9 +64,9 @@ class ArmBridgeTester:
             # 计算目标位置：基准姿态 + 第一个关节正弦波动
             target = POSE_BASE.copy()
             target[0] += (PI / 3) * np.sin(2 * PI * 0.5 * elapsed) # 0.5Hz, ±30度
-            print(target[0])
+            # print(target[0])
             
-            self.send_command(target)
+            # self.send_command(target)
 
             # 打印误差反馈
             fb = self.get_feedback()
