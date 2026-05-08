@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import rospy
+import math
 from geometry_msgs.msg import Pose, PoseStamped, Quaternion
 
 def talker():
@@ -14,18 +15,23 @@ def talker():
 
     # 预设四元数：绕 x 轴旋转 90 度
     # 公式：[sin(theta/2), 0, 0, cos(theta/2)]
-    q = Quaternion(x=0.7071, y=-0.7071, z=0.0, w=0.0)
+    q = Quaternion(
+        x = -0.6652841055959126,
+        y = 0.697490775612147,
+        z = 0.20281342721883897,
+        w = -0.17254098213804459
+    )
     qc = Quaternion(
-        x= -0.6840873608321937,
-        y = 0.7290931931342927, 
-        z = 0.016322292491217295, 
-        w = -0.013460358194198498
+        x = 0.40564921392681963, 
+        y = 0.36859424222420645,
+        z = 0.6436580953764287, 
+        w = 0.5341266292707232
     )
     qg = Quaternion(
-        x= -0.023853000486620587,
-        y = -0.0031776704772307927,
-        z = 0.9993195184429601,
-        w = -0.027954191761773068
+        x = 0.5777317135190533,
+        y = 0.5509842507191253,
+        z = -0.4037743694673119,
+        w = -0.44677587358215454
     )
     
 
@@ -33,18 +39,18 @@ def talker():
         # 1. 构造 current_object_pose (PoseStamped)
         current_pose = PoseStamped()
         current_pose.header.stamp = rospy.Time.now()
-        current_pose.header.frame_id = "world" # 根据你的实际 frame 修改
-        current_pose.pose.position.x = 0.4
-        current_pose.pose.position.y = 0.1
-        current_pose.pose.position.z = -0.1
+        current_pose.header.frame_id = "robot" # 根据你的实际 frame 修改
+        current_pose.pose.position.x = 0.33
+        current_pose.pose.position.y = 0.0
+        current_pose.pose.position.z = -0.05
         current_pose.pose.orientation = qc
 
         # 2. 构造 goal_object_pose (Pose)
         goal_pose = Pose()
-        goal_pose.position.x = 0.4
-        goal_pose.position.y = 0.15
+        goal_pose.position.x = 0.35
+        goal_pose.position.y = 0.0
         goal_pose.position.z = 0.1
-        goal_pose.orientation = qc
+        goal_pose.orientation = q
 
         # 发布数据
         curr_pub.publish(current_pose)

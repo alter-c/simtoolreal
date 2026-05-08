@@ -93,6 +93,7 @@ class ArmROSBridge:
     def _hand_action_callback(self, msg):
         action_msg = copy.copy(msg)
         left_hand_joint = unscale(np.array(action_msg.position), joint_max)
+        left_hand_joint[0], left_hand_joint[1] = left_hand_joint[1], left_hand_joint[0]
         rospy.loginfo(f"Target hand joint: {left_hand_joint}")
         self._hand_ctrl.set_joints("left", left_hand_joint)
 
@@ -107,8 +108,8 @@ if __name__ == '__main__':
     input("Press Enter to continue...")
 
     custom = Custom()
-    hand_control = O6_DirectJointController(left_can_port="can1", right_can_port=None, fps=50.0)
-    ros_bridge = ArmROSBridge(custom, hand_control, publish_hz=50.0)
+    hand_control = O6_DirectJointController(left_can_port="can0", right_can_port=None, fps=50.0)
+    ros_bridge = ArmROSBridge(custom, hand_control, publish_hz=30.0)
     def shutdown_bridge():
         ros_bridge.release()
         print("[Bridge] Safely stopped.")

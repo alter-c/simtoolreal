@@ -194,3 +194,17 @@ BRUSH_NAME_TO_OBJECT = {
     ),
 }
 NAME_TO_OBJECT.update(BRUSH_NAME_TO_OBJECT)
+
+
+##SCREWDRIVERS
+LUOSIDAO_NAME_TO_OBJECT = {
+    "luosidao_x_forward": Object(
+        urdf_path=(
+            get_repo_root_dir()
+            / "assets/urdf/dextoolbench/luosidao/luosidao_x_forward/luosidao_x_forward.urdf"
+        ),
+        scale=rescale_by_factor((0.2, 0.02, 0.02), factor=25),
+        need_vhacd=True,
+    ),
+}
+NAME_TO_OBJECT.update(LUOSIDAO_NAME_TO_OBJECT)

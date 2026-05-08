@@ -3,6 +3,7 @@
 import copy
 import datetime
 import time
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Optional, Tuple
@@ -1124,7 +1125,7 @@ class RLPolicyNode:
         info("=" * 100)
         # THIS IS NOT THE REAL LOOP, DON'T CARE ABOUT THESE NUMBERs
         num_steps = 0
-        NUM_WARMUP_STEPS = 100
+        NUM_WARMUP_STEPS = 10
         while not rospy.is_shutdown():
             num_steps += 1
             info(f"Warmup step {num_steps} of {NUM_WARMUP_STEPS}")
@@ -1450,7 +1451,7 @@ class RLPolicyNodeArgs:
     policy_path: Path = Path("pretrained_policy")
     """Path to the policy directory."""
 
-    object_name: str = "claw_hammer"
+    object_name: str = "long_screwdriver"
     """The name of the object whose grasp bounding box will be used as input to the policy."""
 
 

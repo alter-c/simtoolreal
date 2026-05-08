@@ -183,10 +183,9 @@ def unscale(joint, j_max):
     return q
 
 if __name__ == '__main__':
-    ctrl = O6_DirectJointController(left_can_port="can1", right_can_port=None, fps=50.0)
+    ctrl = O6_DirectJointController(left_can_port="can0", right_can_port=None, fps=50.0)
     try:
         i = 0
-        input()
         while True:
             # ctrl.close_hand("left")
             # time.sleep(2)

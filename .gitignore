@@ -231,3 +231,4 @@ session-*.md
 third_party/
 
 recorded_robot_inputs/
+scripts/
