@@ -65,7 +65,7 @@ class ArmBridgeTester:
             target = POSE_BASE.copy()
             target[0] += (PI / 3) * np.sin(2 * PI * 0.5 * elapsed) # 0.5Hz, ±30度
             
-            self.send_command(target)
+            # self.send_command(target)
 
             # 打印误差反馈
             fb = self.get_feedback()

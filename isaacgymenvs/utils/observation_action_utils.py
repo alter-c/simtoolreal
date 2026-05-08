@@ -104,6 +104,10 @@ def matrix_to_quaternion_xyzw_scipy(matrix: np.ndarray) -> np.ndarray:
     quat[mask] *= -1
     return quat
 
+def quaternion_xyzw_to_matrix_scipy(quat: np.ndarray) -> np.ndarray:
+    matrix = R.from_quat(quat).as_matrix()
+    return matrix
+
 
 assert len(JOINT_NAMES_ISAACGYM) == NUM_DOFS, (
     f"len(JOINT_NAMES_ISAACGYM): {len(JOINT_NAMES_ISAACGYM)}, expected: {NUM_DOFS}"
@@ -364,6 +368,16 @@ def compute_observation(
     assert fingertip_rel_pos.shape == (N, NUM_FINGERS, 3), (
         f"fingertip_rel_pos.shape: {fingertip_rel_pos.shape}, expected: (N, NUM_FINGERS, 3)"
     )
+
+    # process no object pose
+    if np.isnan(object_pose).any():
+        z_rot_quat = np.array([0, 0, math.sin(-math.pi/4), math.cos(-math.pi/4)])[None]
+        palm_rot_mat = quaternion_xyzw_to_matrix_scipy(palm_rot)
+        z_rot_mat = quaternion_xyzw_to_matrix_scipy(z_rot_quat)
+        obj_rot = matrix_to_quaternion_xyzw_scipy(palm_rot_mat @ z_rot_mat)
+        object_pose = np.concatenate(
+            [palm_center_pos, obj_rot], axis=1
+        )
 
     # keypoint positions
     N_KEYPOINTS = 4

@@ -100,7 +100,7 @@ class Custom:
         self.control_dt_ = 0.02
         self.kp          = 60.0
         self.kd          = 1.5
-        self.alpha        = 0.05 # 平滑滤波参数
+        self.alpha        = 0.1 # 平滑滤波参数
         self.arrival_tol  = 0.01
 
         self.crc     = CRC()
